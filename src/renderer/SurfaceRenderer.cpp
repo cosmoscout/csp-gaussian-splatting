@@ -30,14 +30,20 @@ SurfaceRenderer::SurfaceRenderer() {
 
 int SurfaceRenderer::draw(int count, const GaussianData& mesh, float limit,glm::vec3 const& camPos,  glm::mat4 const& matMVP) {
 
+  glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, mesh.mPosOpenGL);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, mesh.mRotOpenGL);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, mesh.mScaleOpenGL);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, mesh.mAlphaOpenGL);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, mesh.mColorOpenGL);
+
   mShader.Bind();
 
   glUniformMatrix4fv(mUniforms.mParamMVP, 1, GL_FALSE, glm::value_ptr(matMVP));
   glUniform3fv(mUniforms.mParamCamPos, 1, glm::value_ptr(camPos));
   glUniform1f(mUniforms.mParamLimit, limit);
   glUniform1i(mUniforms.mParamStage, 0);
+    glDrawArraysInstanced(GL_TRIANGLES, 0, 36, count);
 
-  mesh.render(count);
 
 
 
@@ -48,9 +54,8 @@ int SurfaceRenderer::draw(int count, const GaussianData& mesh, float limit,glm::
   glBlendFunc(GL_SRC_ALPHA, GL_ONE);
 
   glUniform1i(mUniforms.mParamStage, 1);
+    glDrawArraysInstanced(GL_TRIANGLES, 0, 36, count);
 
-  mesh.render(count);
-  
   glDepthMask(GL_TRUE);
   glDisable(GL_BLEND);
   glEnable(GL_DEPTH_TEST);

@@ -12,8 +12,10 @@
 #ifndef CSP_GAUSSIAN_SPLATTING_GAUSSIAN_VIEW_HPP
 #define CSP_GAUSSIAN_SPLATTING_GAUSSIAN_VIEW_HPP
 
+#include <VistaOGLExt/VistaGLSLShader.h>
 #include <cuda_gl_interop.h>
 #include <cuda_runtime.h>
+#include <glm/glm.hpp>
 #include <functional>
 #include <memory>
 
@@ -27,67 +29,40 @@ class BufferCopyRenderer;
 
 class SplatRenderer {
 
-
  public:
-  /**
-   * Constructor
-   * \param ibrScene The scene to use for rendering.
-   * \param render_w rendering width
-   * \param render_h rendering height
-   */
-  SplatRenderer(uint render_w, uint render_h,
-      const char* file, bool* message_read, int sh_degree, bool white_bg = false,
-      bool useInterop = true, int device = 0);
+  SplatRenderer(uint32_t render_w, uint32_t render_h);
+  virtual ~SplatRenderer();
 
-  void draw(sibr::IRenderTarget& dst, const sibr::Camera& eye) override;
+  void draw(float scale, int count,
+     const GaussianData& mesh,
+      glm::vec3 const& camPos,  glm::mat4  matMV,  glm::mat4  matP);
 
+ private:
+  float* mViewCuda = nullptr;
+  float* mProjCuda = nullptr;
+  float* mCamPosCuda = nullptr;
+  float* mBackgroundCuda = nullptr;
 
+  uint32_t mWidth = 0;
+  uint32_t mHeight = 0;
+  
+  GLuint                 mImageBuffer;
+  cudaGraphicsResource_t mImageBufferCuda;
 
-  virtual ~SplatRenderer() override;
+  bool              mInteropFailed = false;
+  std::vector<char> mFallbackBytes;
+  float*            mFallbackBufferCuda = nullptr;
 
+  size_t                         mAllocdGeom = 0, mAllocdBinning = 0, mAllocdImg = 0;
+  void *                         mGeomPtr = nullptr, *mBinningPtr = nullptr, *mImgPtr = nullptr;
+  std::function<char*(size_t N)> mGeomBufferFunc, mBinningBufferFunc, mImgBufferFunc;
 
+  struct {
+    uint32_t mWidth    = 0;
+    uint32_t mHeight = 0;
+  } mUniforms;
 
- protected:
-  std::string currMode = "Splats";
-
-  bool           _cropping = false;
-  sibr::Vector3f _boxmin, _boxmax, _scenemin, _scenemax;
-  char           _buff[512] = "cropped.ply";
-
-  bool _fastCulling = true;
-  int  _device      = 0;
-  int  _sh_degree   = 3;
-
-  int    count;
-  float* pos_cuda;
-  float* rot_cuda;
-  float* scale_cuda;
-  float* opacity_cuda;
-  float* shs_cuda;
-  int*   rect_cuda;
-
-  GLuint                 imageBuffer;
-  cudaGraphicsResource_t imageBufferCuda;
-
-  size_t                         allocdGeom = 0, allocdBinning = 0, allocdImg = 0;
-  void *                         geomPtr = nullptr, *binningPtr = nullptr, *imgPtr = nullptr;
-  std::function<char*(size_t N)> geomBufferFunc, binningBufferFunc, imgBufferFunc;
-
-  float* view_cuda;
-  float* proj_cuda;
-  float* cam_pos_cuda;
-  float* background_cuda;
-
-  float         _scalingModifier = 1.0f;
-  GaussianData* gData;
-
-  bool              _interop_failed = false;
-  std::vector<char> fallback_bytes;
-  float*            fallbackBufferCuda = nullptr;
-  bool              accepted           = false;
-
-  std::shared_ptr<sibr::BasicIBRScene> _scene; ///< The current scene.
-  BufferCopyRenderer*                  _copyRenderer;
+  VistaGLSLShader                  mCopyShader;
 };
 
 } // namespace csp::gaussiansplatting

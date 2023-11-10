@@ -23,10 +23,14 @@ uniform bool flip = false;
 uniform int width = 1000;
 uniform int height = 800;
 
-in vec4 texcoord;
+in vec2 texcoord;
 
 void main(void)
 {
+	if (texcoord.x > 0.5) {
+		discard;
+	}
+
 	int x = int(texcoord.x * width);
 	int y;
 	

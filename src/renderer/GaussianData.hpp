@@ -20,9 +20,9 @@
 
 namespace csp::gaussiansplatting {
 
-class GaussianData {
+struct GaussianData {
   
- public:
+
  typedef Eigen::Matrix<float, 3, 1, Eigen::DontAlign> Pos;
 
 template <int D>
@@ -45,20 +45,24 @@ struct RichPoint {
   Rot    rot;
 };
 
- public:
+
   /// Constructor.
-  GaussianData( std::vector<Pos> const& pos_data, std::vector<Rot> const& rot_data, std::vector<Scale> const& scale_data,
-      std::vector<float> const& alpha_data, std::vector<SHs<3>> const& color_data);
+  GaussianData( std::vector<Pos> const& pos, std::vector<Rot> const& rot, std::vector<Scale> const& scale,
+      std::vector<float> const& alpha, std::vector<SHs<3>> const& color);
+  ~GaussianData();
 
-  void render(int G) const;
+  GLuint mPosOpenGL = 0;
+  GLuint mRotOpenGL = 0;
+  GLuint mScaleOpenGL = 0;
+  GLuint mAlphaOpenGL = 0;
+  GLuint mColorOpenGL = 0;
 
- private:
-
-  GLuint mPosOpenGL;
-  GLuint mRotOpenGL;
-  GLuint mScaleOpenGL;
-  GLuint mAlphaOpenGL;
-  GLuint mColorOpenGL;
+  float* mPosCuda = nullptr;
+  float* mRotCuda = nullptr;
+  float* mScaleCuda = nullptr;
+  float* mOpacityCuda = nullptr;
+  float* mShsCuda = nullptr;
+  int*   mRectCuda = nullptr;
 };
 
 }

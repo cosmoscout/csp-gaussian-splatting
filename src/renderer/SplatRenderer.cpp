@@ -9,79 +9,112 @@
  * For inquiries contact sibr@inria.fr and/or George.Drettakis@inria.fr
  */
 
-#include <boost/asio.hpp>
-#include <core/graphics/GUI.hpp>
-#include <imgui_internal.h>
-#include <projects/SplatRendererer/renderer/SplatRenderer.hpp>
+#include "../../../../src/cs-utils/filesystem.hpp"
+
+#include <glm/gtc/type_ptr.hpp>
+#include <glm/gtc/matrix_access.hpp>
 #include <rasterizer.h>
 #include <thread>
 
+#define CUDA_SAFE_CALL_ALWAYS(A)                                                                   \
+  A;                                                                                               \
+  cudaDeviceSynchronize();                                                                         \
+  if (cudaPeekAtLastError() != cudaSuccess)                                                        \
+    logger().error(cudaGetErrorString(cudaGetLastError()));
+
+#if DEBUG || _DEBUG
+#define CUDA_SAFE_CALL(A) CUDA_SAFE_CALL_ALWAYS(A)
+#else
+#define CUDA_SAFE_CALL(A) A
+#endif
+
 namespace csp::gaussiansplatting {
-// A simple copy renderer class. Much like the original, but this one
-// reads from a buffer instead of a texture and blits the result to
-// a render target.
-class BufferCopyRenderer {
 
- public:
-  BufferCopyRenderer() {
-    _shader.init("CopyShader", sibr::loadFile(sibr::getShadersDirectory("gaussian") + "/copy.vert"),
-        sibr::loadFile(sibr::getShadersDirectory("gaussian") + "/copy.frag"));
+typedef	Eigen::Matrix<float, 4, 4, Eigen::DontAlign, 4, 4>	Matrix4f;
 
-    _flip.init(_shader, "flip");
-    _width.init(_shader, "width");
-    _height.init(_shader, "height");
+SplatRenderer::SplatRenderer(uint32_t render_w, uint32_t render_h):
+mWidth(render_w), mHeight(render_h) {
+ // Create space for view parameters
+  CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void**)&mViewCuda, sizeof(Matrix4f)));
+  CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void**)&mProjCuda, sizeof(Matrix4f)));
+  CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void**)&mCamPosCuda, 3 * sizeof(float)));
+  CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void**)&mBackgroundCuda, 3 * sizeof(float)));
+  
+
+  float bg[3] = {0.f, 0.f, 0.f};
+  CUDA_SAFE_CALL_ALWAYS(cudaMemcpy(mBackgroundCuda, bg, 3 * sizeof(float), cudaMemcpyHostToDevice));
+
+  // Create GL buffer ready for CUDA/GL interop
+  bool useInterop = true;
+
+  glCreateBuffers(1, &mImageBuffer);
+  glNamedBufferStorage(
+      mImageBuffer, render_w * render_h * 3 * sizeof(float), nullptr, GL_DYNAMIC_STORAGE_BIT);
+
+  if (useInterop) {
+    if (cudaPeekAtLastError() != cudaSuccess) {
+      logger().error("A CUDA error occurred in setup: {}", cudaGetErrorString(cudaGetLastError()));
+    }
+    cudaGraphicsGLRegisterBuffer(
+        &mImageBufferCuda, mImageBuffer, cudaGraphicsRegisterFlagsWriteDiscard);
+    useInterop &= (cudaGetLastError() == cudaSuccess);
+  }
+  if (!useInterop) {
+    mFallbackBytes.resize(render_w * render_h * 3 * sizeof(float));
+    cudaMalloc(&mFallbackBufferCuda, mFallbackBytes.size());
+    mInteropFailed = true;
   }
 
-  void process(uint bufferID, IRenderTarget& dst, int width, int height, bool disableTest = true) {
-    if (disableTest)
-      glDisable(GL_DEPTH_TEST);
-    else
-      glEnable(GL_DEPTH_TEST);
+  auto resizeFunctional = [](void** ptr, size_t& S) {
+    auto lambda = [ptr, &S](size_t N) {
+      if (N > S) {
+        if (*ptr)
+          CUDA_SAFE_CALL(cudaFree(*ptr));
+        CUDA_SAFE_CALL(cudaMalloc(ptr, 2 * N));
+        S = 2 * N;
+      }
+      return reinterpret_cast<char*>(*ptr);
+    };
+    return lambda;
+  };
 
-    _shader.begin();
-    _flip.send();
-    _width.send();
-    _height.send();
+  mGeomBufferFunc    = resizeFunctional(&mGeomPtr, mAllocdGeom);
+  mBinningBufferFunc = resizeFunctional(&mBinningPtr, mAllocdBinning);
+  mImgBufferFunc     = resizeFunctional(&mImgPtr, mAllocdImg);
 
-    dst.clear();
-    dst.bind();
+  mCopyShader.InitVertexShaderFromString(cs::utils::filesystem::loadToString("../share/resources/shaders/copy.vert"));
+  mCopyShader.InitFragmentShaderFromString(cs::utils::filesystem::loadToString("../share/resources/shaders/copy.frag"));
+  mCopyShader.Link();
 
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, bufferID);
-
-    sibr::RenderUtility::renderScreenQuad();
-
-    dst.unbind();
-    _shader.end();
-  }
-
-  /** \return option to flip the texture when copying. */
-  bool& flip() {
-    return _flip.get();
-  }
-  int& width() {
-    return _width.get();
-  }
-  int& height() {
-    return _height.get();
-  }
-
- private:
-  GLShader        _shader;
-  GLuniform<bool> _flip   = false; ///< Flip the texture when copying.
-  GLuniform<int>  _width  = 1000;
-  GLuniform<int>  _height = 800;
-};
-
-
-SplatRenderer::SplatRenderer(uint render_w,
-    uint render_h) {
- 
+  mUniforms.mWidth = glGetUniformLocation(mCopyShader.GetProgram(), "width");
+  mUniforms.mHeight = glGetUniformLocation(mCopyShader.GetProgram(), "height");
 }
 
+SplatRenderer::~SplatRenderer() {
+  cudaFree(mViewCuda);
+  cudaFree(mProjCuda);
+  cudaFree(mCamPosCuda);
+  cudaFree(mBackgroundCuda);
 
+  if (!mInteropFailed) {
+    cudaGraphicsUnregisterResource(mImageBufferCuda);
+  } else {
+    cudaFree(mFallbackBufferCuda);
+  }
+  glDeleteBuffers(1, &mImageBuffer);
 
-void SplatRenderer::draw(sibr::IRenderTarget& dst, const sibr::Camera& eye) {
- 
+  if (mGeomPtr)
+    cudaFree(mGeomPtr);
+  if (mBinningPtr)
+    cudaFree(mBinningPtr);
+  if (mImgPtr)
+    cudaFree(mImgPtr);
+}
+
+void SplatRenderer::draw(float scale, int count,
+     const GaussianData& mesh,
+     glm::vec3 const& camPos, glm::mat4 matMV, glm::mat4 matP) {
+  /*
   // Convert view and projection to target coordinate system
   auto view_mat = eye.view();
   auto proj_mat = eye.viewproj();
@@ -92,52 +125,84 @@ void SplatRenderer::draw(sibr::IRenderTarget& dst, const sibr::Camera& eye) {
   // Compute additional view parameters
   float tan_fovy = tan(eye.fovy() * 0.5f);
   float tan_fovx = tan_fovy * eye.aspect();
+  */
+
+ matMV[3][0] *= -1.f;
+ matMV[3][1] *= -1.f;
+ matMV[3][2] *= -1.f;
+
+  //matMV = glm::row(matMV, 0, -1.f * glm::row(matMV, 0));
+  //matMV = glm::row(matMV, 1, -1.f * glm::row(matMV, 1));
+  //matP = glm::row(matP, 0, -1.f * glm::row(matP, 0));
+
+  float tan_fovy = tan(1.0f * 0.5f);
+  float tan_fovx = tan_fovy * (1.f * mWidth / mHeight);
 
   // Copy frame-dependent data to GPU
   CUDA_SAFE_CALL(
-      cudaMemcpy(view_cuda, view_mat.data(), sizeof(sibr::Matrix4f), cudaMemcpyHostToDevice));
+      cudaMemcpy(mViewCuda, glm::value_ptr(matMV), sizeof(glm::mat4), cudaMemcpyHostToDevice));
   CUDA_SAFE_CALL(
-      cudaMemcpy(proj_cuda, proj_mat.data(), sizeof(sibr::Matrix4f), cudaMemcpyHostToDevice));
+      cudaMemcpy(mProjCuda, glm::value_ptr(matP * matMV), sizeof(glm::mat4), cudaMemcpyHostToDevice));
   CUDA_SAFE_CALL(
-      cudaMemcpy(cam_pos_cuda, &eye.position(), sizeof(float) * 3, cudaMemcpyHostToDevice));
+      cudaMemcpy(mCamPosCuda, glm::value_ptr(camPos), sizeof(float) * 3, cudaMemcpyHostToDevice));
+  
 
   float* image_cuda = nullptr;
-  if (!_interop_failed) {
+  if (!mInteropFailed) {
     // Map OpenGL buffer resource for use with CUDA
     size_t bytes;
-    CUDA_SAFE_CALL(cudaGraphicsMapResources(1, &imageBufferCuda));
+    CUDA_SAFE_CALL(cudaGraphicsMapResources(1, &mImageBufferCuda));
     CUDA_SAFE_CALL(
-        cudaGraphicsResourceGetMappedPointer((void**)&image_cuda, &bytes, imageBufferCuda));
+        cudaGraphicsResourceGetMappedPointer((void**)&image_cuda, &bytes, mImageBufferCuda));
   } else {
-    image_cuda = fallbackBufferCuda;
+    image_cuda = mFallbackBufferCuda;
   }
 
   // Rasterize
-  int*   rects  = _fastCulling ? rect_cuda : nullptr;
-  float* boxmin = _cropping ? (float*)&_boxmin : nullptr;
-  float* boxmax = _cropping ? (float*)&_boxmax : nullptr;
-  // CudaRasterizer::Rasterizer::forward(geomBufferFunc, binningBufferFunc, imgBufferFunc, count,
-  //     _sh_degree, 16, background_cuda, _resolution.x(), _resolution.y(), pos_cuda, shs_cuda,
-  //     nullptr, opacity_cuda, scale_cuda, _scalingModifier, rot_cuda, nullptr, view_cuda,
-  //     proj_cuda, cam_pos_cuda, tan_fovx, tan_fovy, false, image_cuda, nullptr, rects, boxmin,
-  //     boxmax);
+  bool _fastCulling = true;
+  int*   rects  = _fastCulling ? mesh.mRectCuda : nullptr;
 
-  if (!_interop_failed) {
+  // Can be used for cropping
+  float* boxmin = nullptr;
+  float* boxmax = nullptr;
+  
+  CudaRasterizer::Rasterizer::forward(mGeomBufferFunc, mBinningBufferFunc, mImgBufferFunc, count,
+      3, 16, mBackgroundCuda, mWidth, mHeight, mesh.mPosCuda, mesh.mShsCuda,
+      nullptr, mesh.mOpacityCuda, mesh.mScaleCuda, scale, mesh.mRotCuda, nullptr, mViewCuda,
+      mProjCuda, mCamPosCuda, tan_fovx, tan_fovy, false, image_cuda);//, nullptr, rects, boxmin, boxmax);
+
+
+  if (!mInteropFailed) {
     // Unmap OpenGL resource for use with OpenGL
-    CUDA_SAFE_CALL(cudaGraphicsUnmapResources(1, &imageBufferCuda));
+    CUDA_SAFE_CALL(cudaGraphicsUnmapResources(1, &mImageBufferCuda));
   } else {
-    CUDA_SAFE_CALL(cudaMemcpy(fallback_bytes.data(), fallbackBufferCuda, fallback_bytes.size(),
+    CUDA_SAFE_CALL(cudaMemcpy(mFallbackBytes.data(), mFallbackBufferCuda, mFallbackBytes.size(),
         cudaMemcpyDeviceToHost));
-    glNamedBufferSubData(imageBuffer, 0, fallback_bytes.size(), fallback_bytes.data());
+    glNamedBufferSubData(mImageBuffer, 0, mFallbackBytes.size(), mFallbackBytes.data());
   }
-  // Copy image contents to framebuffer
-  _copyRenderer->process(imageBuffer, dst, _resolution.x(), _resolution.y());
   
 
+  // Copy image contents to framebuffer
+  mCopyShader.Bind();
+
+  glDisable(GL_DEPTH_TEST);
+  glDepthMask(GL_FALSE);
+
+  glUniform1i(mUniforms.mWidth, mWidth);
+  glUniform1i(mUniforms.mHeight, mHeight);
+
+  glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, mImageBuffer);
+  glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+  glEnable(GL_DEPTH_TEST);
+  glDepthMask(GL_TRUE);
+
+  mCopyShader.Release();
+
   if (cudaPeekAtLastError() != cudaSuccess) {
-    SIBR_ERR << "A CUDA error occurred during rendering:" << cudaGetErrorString(cudaGetLastError())
-             << ". Please rerun in Debug to find the exact line!";
+    logger().error("A CUDA error occurred during rendering: {}", cudaGetErrorString(cudaGetLastError()));
   }
+ 
 }
 
 

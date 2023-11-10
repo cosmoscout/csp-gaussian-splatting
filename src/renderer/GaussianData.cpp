@@ -12,31 +12,65 @@
 
 #include "GaussianData.hpp"
 
+#include <cuda_runtime.h>
+
+#define CUDA_SAFE_CALL_ALWAYS(A)                                                                   \
+  A;                                                                                               \
+  cudaDeviceSynchronize();                                                                         \
+  if (cudaPeekAtLastError() != cudaSuccess)                                                        \
+    logger().error(cudaGetErrorString(cudaGetLastError()));
+
+#if DEBUG || _DEBUG
+#define CUDA_SAFE_CALL(A) CUDA_SAFE_CALL_ALWAYS(A)
+#else
+#define CUDA_SAFE_CALL(A) A
+#endif
+
 namespace csp::gaussiansplatting {
 
-GaussianData::GaussianData(std::vector<Pos> const& pos_data, std::vector<Rot> const& rot_data, std::vector<Scale> const& scale_data,
-      std::vector<float> const& alpha_data, std::vector<SHs<3>> const& color_data)
+GaussianData::GaussianData(std::vector<Pos> const& pos, std::vector<Rot> const& rot, std::vector<Scale> const& scale,
+      std::vector<float> const& alpha, std::vector<SHs<3>> const& color)
 {
+    auto count = pos.size();
+
     glCreateBuffers(1, &mPosOpenGL);
     glCreateBuffers(1, &mRotOpenGL);
     glCreateBuffers(1, &mScaleOpenGL);
     glCreateBuffers(1, &mAlphaOpenGL);
     glCreateBuffers(1, &mColorOpenGL);
-    glNamedBufferStorage(mPosOpenGL, pos_data.size() * 3 * sizeof(float), &pos_data[0], 0);
-    glNamedBufferStorage(mRotOpenGL, rot_data.size() * 4 * sizeof(float), &rot_data[0], 0);
-    glNamedBufferStorage(mScaleOpenGL, scale_data.size() * 3 * sizeof(float), &scale_data[0], 0);
-    glNamedBufferStorage(mAlphaOpenGL, alpha_data.size() * sizeof(float), &alpha_data[0], 0);
-    glNamedBufferStorage(mColorOpenGL, color_data.size() * sizeof(float) * 48, &color_data[0], 0);
+    glNamedBufferStorage(mPosOpenGL, count * 3 * sizeof(float), &pos[0], 0);
+    glNamedBufferStorage(mRotOpenGL, count * 4 * sizeof(float), &rot[0], 0);
+    glNamedBufferStorage(mScaleOpenGL, count * 3 * sizeof(float), &scale[0], 0);
+    glNamedBufferStorage(mAlphaOpenGL, count * sizeof(float), &alpha[0], 0);
+    glNamedBufferStorage(mColorOpenGL, count * sizeof(float) * 48, &color[0], 0);
+
+    // Allocate and fill the GPU data
+    CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void**)&mPosCuda, sizeof(Pos) * count));
+    CUDA_SAFE_CALL_ALWAYS(cudaMemcpy(mPosCuda, pos.data(), sizeof(Pos) * count, cudaMemcpyHostToDevice));
+    CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void**)&mRotCuda, sizeof(Rot) * count));
+    CUDA_SAFE_CALL_ALWAYS(cudaMemcpy(mRotCuda, rot.data(), sizeof(Rot) * count, cudaMemcpyHostToDevice));
+    CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void**)&mShsCuda, sizeof(SHs<3>) * count));
+    CUDA_SAFE_CALL_ALWAYS(cudaMemcpy(mShsCuda, color.data(), sizeof(SHs<3>) * count, cudaMemcpyHostToDevice));
+    CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void**)&mOpacityCuda, sizeof(float) * count));
+    CUDA_SAFE_CALL_ALWAYS(cudaMemcpy(mOpacityCuda, alpha.data(), sizeof(float) * count, cudaMemcpyHostToDevice));
+    CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void**)&mScaleCuda, sizeof(Scale) * count));
+    CUDA_SAFE_CALL_ALWAYS(cudaMemcpy(mScaleCuda, scale.data(), sizeof(Scale) * count, cudaMemcpyHostToDevice));
+    CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void**)&mRectCuda, 2 * count * sizeof(int)));
 }
 
-void GaussianData::render(int G) const
-{
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, mPosOpenGL);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, mRotOpenGL);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, mScaleOpenGL);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, mAlphaOpenGL);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, mColorOpenGL);
-    glDrawArraysInstanced(GL_TRIANGLES, 0, 36, G);
+GaussianData::~GaussianData() {
+    glDeleteBuffers(1, &mPosOpenGL);
+    glDeleteBuffers(1, &mRotOpenGL);
+    glDeleteBuffers(1, &mScaleOpenGL);
+    glDeleteBuffers(1, &mAlphaOpenGL);
+    glDeleteBuffers(1, &mColorOpenGL);
+
+    cudaFree(mPosCuda);
+    cudaFree(mRotCuda);
+    cudaFree(mScaleCuda);
+    cudaFree(mOpacityCuda);
+    cudaFree(mShsCuda);
+    cudaFree(mRectCuda);
 }
 
 }

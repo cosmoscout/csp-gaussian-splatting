@@ -12,7 +12,7 @@
 #include "../externals/Eigen/Eigen"
 #include "renderer/GaussianData.hpp"
 
-//#include "renderer/SplatRenderer.hpp"
+#include "renderer/SplatRenderer.hpp"
 #include "renderer/SurfaceRenderer.hpp"
 
 #include "../../../src/cs-core/EclipseShadowReceiver.hpp"
@@ -36,7 +36,6 @@ class GaussianRenderer : public cs::scene::CelestialObject, public IVistaOpenGLD
  public:
   typedef Eigen::Matrix<float, 3, 1, Eigen::DontAlign> Vector3f;
   typedef Eigen::Matrix<int, 3, 1, Eigen::DontAlign>   Vector3i;
-  typedef	Eigen::Matrix<float, 4, 4, Eigen::DontAlign, 4, 4>	Matrix4f;
   
   GaussianRenderer(std::shared_ptr<cs::core::Settings> settings,
       std::shared_ptr<cs::core::SolarSystem> solarSystem, std::string objectName);
@@ -70,7 +69,6 @@ class GaussianRenderer : public cs::scene::CelestialObject, public IVistaOpenGLD
 
   Plugin::Settings::RadianceField mRadianceField;
 
-  bool mShaderDirty              = true;
   int  mEnableLightingConnection = -1;
   int  mEnableHDRConnection      = -1;
 
@@ -81,43 +79,10 @@ class GaussianRenderer : public cs::scene::CelestialObject, public IVistaOpenGLD
   Vector3f mSceneMin{};
   Vector3f mSceneMax{};
 
-  float* mPosCuda = nullptr;
-  float* mRotCuda = nullptr;
-  float* mScaleCuda = nullptr;
-  float* mOpacityCuda = nullptr;
-  float* mShsCuda = nullptr;
-  float* mViewCuda = nullptr;
-  float* mProjCuda = nullptr;
-  float* mCamPosCuda = nullptr;
-  float* mBackgroundCuda = nullptr;
-  int*   mRectCuda = nullptr;
-
-  GLuint                 mImageBuffer;
-  cudaGraphicsResource_t mImageBufferCuda;
-
   GaussianData* mData;
-
-  bool              mInteropFailed = false;
-  std::vector<char> mFallbackBytes;
-  float*            mFallbackBufferCuda = nullptr;
-
-  size_t                         mAllocdGeom = 0, mAllocdBinning = 0, mAllocdImg = 0;
-  void *                         mGeomPtr = nullptr, *mBinningPtr = nullptr, *mImgPtr = nullptr;
-  std::function<char*(size_t N)> mGeomBufferFunc, mBinningBufferFunc, mImgBufferFunc;
-
+  
   std::shared_ptr<SurfaceRenderer> mSurfaceRenderer;
-  //std::shared_ptr<SplatRenderer>   mSplatRenderer;
-
-  struct {
-    uint32_t modelMatrix       = 0;
-    uint32_t viewMatrix        = 0;
-    uint32_t projectionMatrix  = 0;
-    uint32_t surfaceTexture    = 0;
-    uint32_t radii             = 0;
-    uint32_t sunIlluminance    = 0;
-    uint32_t ambientBrightness = 0;
-    uint32_t litSideVisible    = 0;
-  } mUniforms;
+  std::shared_ptr<SplatRenderer>   mSplatRenderer;
 };
 } // namespace csp::gaussiansplatting
 

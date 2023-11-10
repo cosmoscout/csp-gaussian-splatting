@@ -21,7 +21,7 @@ add_subdirectory(externals/diff-gaussian-rasterization)
 
 # build plugin -------------------------------------------------------------------------------------
 
-file(GLOB SOURCE_FILES src/*.cpp src/renderer/GaussianData.cpp src/renderer/SurfaceRenderer.cpp)
+file(GLOB SOURCE_FILES src/*.cpp src/renderer/*.cpp)
 
 # Resoucre files and header files are only added in order to make them available in your IDE.
 file(GLOB HEADER_FILES src/*.hpp)

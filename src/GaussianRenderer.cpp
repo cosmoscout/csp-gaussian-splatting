@@ -32,10 +32,6 @@ float sigmoid(const float m1) {
   return 1.0f / (1.0f + exp(-m1));
 }
 
-// float inverse_sigmoid(const float m1) {
-//   return log(m1 / (1.0f - m1));
-// }
-
 #define CUDA_SAFE_CALL_ALWAYS(A)                                                                   \
   A;                                                                                               \
   cudaDeviceSynchronize();                                                                         \
@@ -166,9 +162,9 @@ GaussianRenderer::GaussianRenderer(std::shared_ptr<cs::core::Settings> settings,
 
   // Recreate the shader if HDR rendering mode is toggled.
   mEnableLightingConnection = mSettings->mGraphics.pEnableLighting.connect(
-      [this](bool /*enabled*/) { mShaderDirty = true; });
+      [this](bool /*enabled*/) { });
   mEnableHDRConnection =
-      mSettings->mGraphics.pEnableHDR.connect([this](bool /*enabled*/) { mShaderDirty = true; });
+      mSettings->mGraphics.pEnableHDR.connect([this](bool /*enabled*/) {  });
 
   // Add to scenegraph.
   VistaSceneGraph* pSG = GetVistaSystem()->GetGraphicsManager()->GetSceneGraph();
@@ -185,35 +181,6 @@ GaussianRenderer::~GaussianRenderer() {
 
   VistaSceneGraph* pSG = GetVistaSystem()->GetGraphicsManager()->GetSceneGraph();
   pSG->GetRoot()->DisconnectChild(mGLNode.get());
-
-  // Cleanup
-  cudaFree(mPosCuda);
-  cudaFree(mRotCuda);
-  cudaFree(mScaleCuda);
-  cudaFree(mOpacityCuda);
-  cudaFree(mShsCuda);
-
-  cudaFree(mViewCuda);
-  cudaFree(mProjCuda);
-  cudaFree(mCamPosCuda);
-  cudaFree(mBackgroundCuda);
-  cudaFree(mRectCuda);
-
-  if (!mInteropFailed) {
-    cudaGraphicsUnregisterResource(mImageBufferCuda);
-  } else {
-    cudaFree(mFallbackBufferCuda);
-  }
-  glDeleteBuffers(1, &mImageBuffer);
-
-  if (mGeomPtr)
-    cudaFree(mGeomPtr);
-  if (mBinningPtr)
-    cudaFree(mBinningPtr);
-  if (mImgPtr)
-    cudaFree(mImgPtr);
-
-  // delete mCopyRenderer;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -258,78 +225,11 @@ void GaussianRenderer::configure(
       mCount = loadPly<3>(mRadianceField.mPLY.c_str(), pos, shs, opacity, scale, rot, mSceneMin, mSceneMax);
     }
 
-    int P = mCount;
-
-    // Allocate and fill the GPU data
-    CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void**)&mPosCuda, sizeof(GaussianData::Pos) * P));
-    CUDA_SAFE_CALL_ALWAYS(cudaMemcpy(mPosCuda, pos.data(), sizeof(GaussianData::Pos) * P, cudaMemcpyHostToDevice));
-    CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void**)&mRotCuda, sizeof(GaussianData::Rot) * P));
-    CUDA_SAFE_CALL_ALWAYS(cudaMemcpy(mRotCuda, rot.data(), sizeof(GaussianData::Rot) * P, cudaMemcpyHostToDevice));
-    CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void**)&mShsCuda, sizeof(GaussianData::SHs<3>) * P));
-    CUDA_SAFE_CALL_ALWAYS(
-        cudaMemcpy(mShsCuda, shs.data(), sizeof(GaussianData::SHs<3>) * P, cudaMemcpyHostToDevice));
-    CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void**)&mOpacityCuda, sizeof(float) * P));
-    CUDA_SAFE_CALL_ALWAYS(
-        cudaMemcpy(mOpacityCuda, opacity.data(), sizeof(float) * P, cudaMemcpyHostToDevice));
-    CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void**)&mScaleCuda, sizeof(GaussianData::Scale) * P));
-    CUDA_SAFE_CALL_ALWAYS(
-        cudaMemcpy(mScaleCuda, scale.data(), sizeof(GaussianData::Scale) * P, cudaMemcpyHostToDevice));
-
-    // Create space for view parameters
-    CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void**)&mViewCuda, sizeof(Matrix4f)));
-    CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void**)&mProjCuda, sizeof(Matrix4f)));
-    CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void**)&mCamPosCuda, 3 * sizeof(float)));
-    CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void**)&mBackgroundCuda, 3 * sizeof(float)));
-    CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void**)&mRectCuda, 2 * P * sizeof(int)));
-
-    float bg[3] = {0.f, 0.f, 0.f};
-    CUDA_SAFE_CALL_ALWAYS(cudaMemcpy(mBackgroundCuda, bg, 3 * sizeof(float), cudaMemcpyHostToDevice));
-
-    mData = new GaussianData(pos, rot, scale,
+     mData = new GaussianData(pos, rot, scale,
         opacity, shs);
 
     mSurfaceRenderer = std::make_shared<SurfaceRenderer>();
-    //mSplatRenderer = std::make_shared<SplatRenderer>();
-
-    // Create GL buffer ready for CUDA/GL interop
-    const int render_w = 800;
-    const int render_h = 600;
-    bool useInterop = true;
-
-    glCreateBuffers(1, &mImageBuffer);
-    glNamedBufferStorage(
-        mImageBuffer, render_w * render_h * 3 * sizeof(float), nullptr, GL_DYNAMIC_STORAGE_BIT);
-
-    if (useInterop) {
-      if (cudaPeekAtLastError() != cudaSuccess) {
-        logger().error("A CUDA error occurred in setup: {}", cudaGetErrorString(cudaGetLastError()));
-      }
-      cudaGraphicsGLRegisterBuffer(
-          &mImageBufferCuda, mImageBuffer, cudaGraphicsRegisterFlagsWriteDiscard);
-      useInterop &= (cudaGetLastError() == cudaSuccess);
-    }
-    if (!useInterop) {
-      mFallbackBytes.resize(render_w * render_h * 3 * sizeof(float));
-      cudaMalloc(&mFallbackBufferCuda, mFallbackBytes.size());
-      mInteropFailed = true;
-    }
-
-    auto resizeFunctional = [](void** ptr, size_t& S) {
-      auto lambda = [ptr, &S](size_t N) {
-        if (N > S) {
-          if (*ptr)
-            CUDA_SAFE_CALL(cudaFree(*ptr));
-          CUDA_SAFE_CALL(cudaMalloc(ptr, 2 * N));
-          S = 2 * N;
-        }
-        return reinterpret_cast<char*>(*ptr);
-      };
-      return lambda;
-    };
-
-    mGeomBufferFunc    = resizeFunctional(&mGeomPtr, mAllocdGeom);
-    mBinningBufferFunc = resizeFunctional(&mBinningPtr, mAllocdBinning);
-    mImgBufferFunc     = resizeFunctional(&mImgPtr, mAllocdImg);
+    mSplatRenderer = std::make_shared<SplatRenderer>(1600, 900);
   }
 
   // Set radius for visibility culling.
@@ -362,23 +262,20 @@ bool GaussianRenderer::Do() {
 
   cs::utils::FrameStats::ScopedTimer timer("Gaussian Renderer");
 
-  // (Re-)Create renderer if necessary.
-  if (mShaderDirty) {
-    //
 
-    mShaderDirty = false;
-  }
+  // Get modelview and projection matrices.
+  std::array<GLfloat, 16> glMatV{};
+  std::array<GLfloat, 16> glMatP{};
+  glGetFloatv(GL_MODELVIEW_MATRIX, glMatV.data());
+  glGetFloatv(GL_PROJECTION_MATRIX, glMatP.data());
+  glm::mat4 matM = object->getObserverRelativeTransform(glm::dvec3(513459.f, 5148508.f, 3705575.f),
+    glm::dquat(0.27548176140996283,
+          -0.0487542874446906,
+          -0.05965493729868978,
+          0.9582140194351751), 1.0);
+  glm::mat4 matV = glm::make_mat4x4(glMatV.data());
+  glm::mat4 matP = glm::make_mat4x4(glMatP.data());
 
-
-    // Get modelview and projection matrices.
-    std::array<GLfloat, 16> glMatV{};
-    std::array<GLfloat, 16> glMatP{};
-    glGetFloatv(GL_MODELVIEW_MATRIX, glMatV.data());
-    glGetFloatv(GL_PROJECTION_MATRIX, glMatP.data());
-    glm::mat4 matM = object->getObserverRelativeTransform(glm::dvec3(0.f, 0.f, 6400000.f),
-      glm::dquat(1.0, 0.0, 0.0, 0.0), 10000.0);
-    glm::mat4 matV = glm::make_mat4x4(glMatV.data());
-    glm::mat4 matP = glm::make_mat4x4(glMatP.data());
 /*
     float sunIlluminance(1.F);
     float ambientBrightness(mSettings->mGraphics.pAmbientBrightness.get());
@@ -401,10 +298,13 @@ bool GaussianRenderer::Do() {
     Vector3f viewNormal      = (matNormalMatrix * glm::vec4(0.0F, 1.0F, 0.0F, 0.0F)).xyz();
   */
 
+ float sceneScale = static_cast<float>(1.0 / mSolarSystem->getObserver().getScale());
+
 glm::vec4 viewPos         = glm::inverse(matV * matM) * glm::vec4(0.0F, 0.0F, 0.0F, 1.0F);
 viewPos                   = viewPos / viewPos.w;
 
-  mSurfaceRenderer->draw(mCount, *mData, 0.2f, viewPos, matP * matV * matM);
+  //mSurfaceRenderer->draw(mCount, *mData, 0.2f, viewPos, matP * matV * matM);
+  mSplatRenderer->draw(1.f, mCount, *mData, viewPos, matV * matM, matP);
 
   return true;
 }
