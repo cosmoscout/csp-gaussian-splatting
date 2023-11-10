@@ -9,7 +9,7 @@
 #define CSP_GAUSSIAN_SPLATTING_GAUSSIAN_RENDERER_HPP
 
 #include "Plugin.hpp"
-#include "Eigen/Eigen"
+#include "../externals/Eigen/Eigen"
 #include "renderer/GaussianData.hpp"
 
 //#include "renderer/SplatRenderer.hpp"
