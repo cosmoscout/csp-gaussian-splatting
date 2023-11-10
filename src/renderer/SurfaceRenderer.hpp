@@ -20,29 +20,20 @@ namespace csp::gaussiansplatting {
 class SurfaceRenderer {
 
  public:
-  /// Constructor.
-  SurfaceRenderer(void);
+  SurfaceRenderer();
 
-  int draw(int                   G,
+  int draw(int count,
      const GaussianData& mesh,
-      float alphaLimit,glm::vec3 const& camPos,  glm::mat4 const& matMVP, int w, int h);
+      float alphaLimit,glm::vec3 const& camPos,  glm::mat4 const& matMVP);
 
  private:
- void makeFBO(int w, int h);
-
-  GLuint mIdTexture;
-  GLuint mColorTexture;
-  GLuint mDepthBuffer;
-  GLuint mFbo;
-  int    mResX, mResY;
-
-  VistaGLSLShader    mShader;   ///< Color shader.
+  VistaGLSLShader mShader;
 
   struct {
-    uint32_t mParamMVP       = 0;
-    uint32_t mParamCamPos        = 0;
+    uint32_t mParamMVP    = 0;
+    uint32_t mParamCamPos = 0;
     uint32_t mParamLimit  = 0;
-    uint32_t mParamStage    = 0;
+    uint32_t mParamStage  = 0;
   } mUniforms;
 };
 

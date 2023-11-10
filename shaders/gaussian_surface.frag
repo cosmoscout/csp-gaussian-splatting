@@ -25,7 +25,6 @@ in float alphaVert;
 in flat int boxID;
 
 layout (location = 0) out vec4 out_color;
-layout (location = 1) out uint out_id;
 
 vec3 closestEllipsoidIntersection(vec3 rayDirection, out vec3 normal) {
   // Convert ray to ellipsoid space
@@ -81,13 +80,7 @@ void main(void) {
 	if(intersection == vec3(0))
 		discard;
 
-	vec4 newPos = MVP * vec4(intersection, 1);
-	newPos /= newPos.w;
-
-	gl_FragDepth = newPos.z;
-
 	float a = stage == 0 ? 1.0 : 0.05f;
 
 	out_color = vec4(align * colorVert, a);
-	out_id = boxID;
 }

@@ -399,7 +399,7 @@ bool GaussianRenderer::Do() {
     glGetFloatv(GL_MODELVIEW_MATRIX, glMatV.data());
     glGetFloatv(GL_PROJECTION_MATRIX, glMatP.data());
     glm::mat4 matM = object->getObserverRelativeTransform(glm::dvec3(0.f, 0.f, 6400000.f),
-      glm::dquat(1.0, 0.0, 0.0, 0.0), 1000.0);
+      glm::dquat(1.0, 0.0, 0.0, 0.0), 10000.0);
     glm::mat4 matV = glm::make_mat4x4(glMatV.data());
     glm::mat4 matP = glm::make_mat4x4(glMatP.data());
 /*
@@ -427,7 +427,7 @@ bool GaussianRenderer::Do() {
 glm::vec4 viewPos         = glm::inverse(matV * matM) * glm::vec4(0.0F, 0.0F, 0.0F, 1.0F);
 viewPos                   = viewPos / viewPos.w;
 
-  mSurfaceRenderer->draw(mCount, *mData, 0.2f, viewPos, matP * matV * matM, 800, 600);
+  mSurfaceRenderer->draw(mCount, *mData, 0.2f, viewPos, matP * matV * matM);
 
   return true;
 }
