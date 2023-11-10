@@ -15,6 +15,10 @@ endif()
 
 find_package(CUDA 11.0 REQUIRED)
 
+# compile the rasterizer lib -----------------------------------------------------------------------
+
+add_subdirectory(externals/diff-gaussian-rasterization)
+
 # build plugin -------------------------------------------------------------------------------------
 
 file(GLOB SOURCE_FILES src/*.cpp src/renderer/GaussianData.cpp src/renderer/SurfaceRenderer.cpp)
@@ -32,6 +36,7 @@ add_library(csp-gaussian-splatting SHARED
 target_link_libraries(csp-gaussian-splatting
   PUBLIC
     cs-core
+    CudaRasterizer
     ${CUDA_LIBRARIES}
 )
 
