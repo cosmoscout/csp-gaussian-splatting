@@ -105,8 +105,8 @@ class GaussianRenderer : public cs::scene::CelestialObject, public IVistaOpenGLD
   void *                         mGeomPtr = nullptr, *mBinningPtr = nullptr, *mImgPtr = nullptr;
   std::function<char*(size_t N)> mGeomBufferFunc, mBinningBufferFunc, mImgBufferFunc;
 
-  std::shared_ptr<SurfaceRenderer>   mSurfaceRenderer;
-  // std::shared_ptr<SplatRenderer>   mSplatRenderer;
+  std::shared_ptr<SurfaceRenderer> mSurfaceRenderer;
+  //std::shared_ptr<SplatRenderer>   mSplatRenderer;
 
   struct {
     uint32_t modelMatrix       = 0;

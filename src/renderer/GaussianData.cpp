@@ -14,28 +14,28 @@
 
 namespace csp::gaussiansplatting {
 
-GaussianData::GaussianData(int num_gaussians, float* mean_data, float* rot_data, float* scale_data, float* alpha_data, float* color_data)
+GaussianData::GaussianData(std::vector<Pos> const& pos_data, std::vector<Rot> const& rot_data, std::vector<Scale> const& scale_data,
+      std::vector<float> const& alpha_data, std::vector<SHs<3>> const& color_data)
 {
-    _num_gaussians = num_gaussians;
-    glCreateBuffers(1, &meanBuffer);
-    glCreateBuffers(1, &rotBuffer);
-    glCreateBuffers(1, &scaleBuffer);
-    glCreateBuffers(1, &alphaBuffer);
-    glCreateBuffers(1, &colorBuffer);
-    glNamedBufferStorage(meanBuffer, num_gaussians * 3 * sizeof(float), mean_data, 0);
-    glNamedBufferStorage(rotBuffer, num_gaussians * 4 * sizeof(float), rot_data, 0);
-    glNamedBufferStorage(scaleBuffer, num_gaussians * 3 * sizeof(float), scale_data, 0);
-    glNamedBufferStorage(alphaBuffer, num_gaussians * sizeof(float), alpha_data, 0);
-    glNamedBufferStorage(colorBuffer, num_gaussians * sizeof(float) * 48, color_data, 0);
+    glCreateBuffers(1, &mPosOpenGL);
+    glCreateBuffers(1, &mRotOpenGL);
+    glCreateBuffers(1, &mScaleOpenGL);
+    glCreateBuffers(1, &mAlphaOpenGL);
+    glCreateBuffers(1, &mColorOpenGL);
+    glNamedBufferStorage(mPosOpenGL, pos_data.size() * 3 * sizeof(float), &pos_data[0], 0);
+    glNamedBufferStorage(mRotOpenGL, rot_data.size() * 4 * sizeof(float), &rot_data[0], 0);
+    glNamedBufferStorage(mScaleOpenGL, scale_data.size() * 3 * sizeof(float), &scale_data[0], 0);
+    glNamedBufferStorage(mAlphaOpenGL, alpha_data.size() * sizeof(float), &alpha_data[0], 0);
+    glNamedBufferStorage(mColorOpenGL, color_data.size() * sizeof(float) * 48, &color_data[0], 0);
 }
 
 void GaussianData::render(int G) const
 {
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, meanBuffer);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, rotBuffer);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, scaleBuffer);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, alphaBuffer);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, colorBuffer);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, mPosOpenGL);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, mRotOpenGL);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, mScaleOpenGL);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, mAlphaOpenGL);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, mColorOpenGL);
     glDrawArraysInstanced(GL_TRIANGLES, 0, 36, G);
 }
 

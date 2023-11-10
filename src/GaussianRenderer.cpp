@@ -24,32 +24,9 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <utility>
 
+namespace csp::gaussiansplatting {
+
 namespace {
-// Define the types and sizes that make up the contents of each Gaussian
-// in the trained model. See
-// https://gitlab.inria.fr/sibr/sibr_core/-/blob/fossa_compatibility/src/core/system/Vector.hpp?ref_type=heads#L202
-
-typedef csp::gaussiansplatting::GaussianRenderer::Vector3f Pos;
-
-template <int D>
-struct SHs {
-  float shs[(D + 1) * (D + 1) * 3];
-};
-struct Scale {
-  float scale[3];
-};
-struct Rot {
-  float rot[4];
-};
-template <int D>
-struct RichPoint {
-  Pos    pos;
-  float  n[3];
-  SHs<D> shs;
-  float  opacity;
-  Scale  scale;
-  Rot    rot;
-};
 
 float sigmoid(const float m1) {
   return 1.0f / (1.0f + exp(-m1));
@@ -73,13 +50,13 @@ float sigmoid(const float m1) {
 
 // Load the Gaussians from the given file.
 template <int D>
-int loadPly(const char* filename, std::vector<csp::gaussiansplatting::GaussianRenderer::Vector3f>& pos, std::vector<SHs<3>>& shs,
-    std::vector<float>& opacities, std::vector<Scale>& scales, std::vector<Rot>& rot,
-    csp::gaussiansplatting::GaussianRenderer::Vector3f& minn, csp::gaussiansplatting::GaussianRenderer::Vector3f& maxx) {
+int loadPly(const char* filename, std::vector<GaussianData::Pos>& pos, std::vector<GaussianData::SHs<3>>& shs,
+    std::vector<float>& opacities, std::vector<GaussianData::Scale>& scales, std::vector<GaussianData::Rot>& rot,
+    GaussianRenderer::Vector3f& minn, GaussianRenderer::Vector3f& maxx) {
   std::ifstream infile(filename, std::ios_base::binary);
 
   if (!infile.good())
-    csp::gaussiansplatting::logger().error(
+    logger().error(
         "Unable to find model's PLY file, attempted: {}", filename);
 
   // "Parse" header (it has to be a specific format anyway)
@@ -94,15 +71,15 @@ int loadPly(const char* filename, std::vector<csp::gaussiansplatting::GaussianRe
   ss >> dummy >> dummy >> count;
 
   // Output number of Gaussians contained
-  csp::gaussiansplatting::logger().info("Loading {} Gaussian splats", count);
+  logger().info("Loading {} Gaussian splats", count);
 
   while (std::getline(infile, buff))
     if (buff.compare("end_header") == 0)
       break;
 
   // Read all Gaussians at once (AoS)
-  std::vector<RichPoint<D>> points(count);
-  infile.read((char*)points.data(), count * sizeof(RichPoint<D>));
+  std::vector<GaussianData::RichPoint<D>> points(count);
+  infile.read((char*)points.data(), count * sizeof(GaussianData::RichPoint<D>));
 
   // Resize our SoA data
   pos.resize(count);
@@ -115,7 +92,7 @@ int loadPly(const char* filename, std::vector<csp::gaussiansplatting::GaussianRe
   // them according to 3D Morton order. This means better cache
   // behavior for reading Gaussians that end up in the same tile
   // (close in 3D --> close in 2D).
-  minn = csp::gaussiansplatting::GaussianRenderer::Vector3f(FLT_MAX, FLT_MAX, FLT_MAX);
+  minn = GaussianRenderer::Vector3f(FLT_MAX, FLT_MAX, FLT_MAX);
   maxx = -minn;
   for (int i = 0; i < count; i++) {
     maxx = maxx.cwiseMax(points[i].pos);
@@ -123,9 +100,9 @@ int loadPly(const char* filename, std::vector<csp::gaussiansplatting::GaussianRe
   }
   std::vector<std::pair<uint64_t, int>> mapp(count);
   for (int i = 0; i < count; i++) {
-    csp::gaussiansplatting::GaussianRenderer::Vector3f rel    = (points[i].pos - minn).array() / (maxx - minn).array();
-    csp::gaussiansplatting::GaussianRenderer::Vector3f scaled = ((float((1 << 21) - 1)) * rel);
-    csp::gaussiansplatting::GaussianRenderer::Vector3i xyz    = scaled.cast<int>();
+    GaussianRenderer::Vector3f rel    = (points[i].pos - minn).array() / (maxx - minn).array();
+    GaussianRenderer::Vector3f scaled = ((float((1 << 21) - 1)) * rel);
+    GaussianRenderer::Vector3i xyz    = scaled.cast<int>();
 
     uint64_t code = 0;
     for (int i = 0; i < 21; i++) {
@@ -177,7 +154,7 @@ int loadPly(const char* filename, std::vector<csp::gaussiansplatting::GaussianRe
 
 } // namespace
 
-namespace csp::gaussiansplatting {
+
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -266,11 +243,11 @@ void GaussianRenderer::configure(
       logger().error("Sorry, need at least compute capability 7.0+! (got {})", prop.major);
     }
 
-    std::vector<Pos>    pos;
-    std::vector<Rot>    rot;
-    std::vector<Scale>  scale;
+    std::vector<GaussianData::Pos>    pos;
+    std::vector<GaussianData::Rot>    rot;
+    std::vector<GaussianData::Scale>  scale;
     std::vector<float>  opacity;
-    std::vector<SHs<3>> shs;
+    std::vector<GaussianData::SHs<3>> shs;
     if (mSHDegree == 0) {
       mCount = loadPly<0>(mRadianceField.mPLY.c_str(), pos, shs, opacity, scale, rot, mSceneMin, mSceneMax);
     } else if (mSHDegree == 1) {
@@ -284,19 +261,19 @@ void GaussianRenderer::configure(
     int P = mCount;
 
     // Allocate and fill the GPU data
-    CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void**)&mPosCuda, sizeof(Pos) * P));
-    CUDA_SAFE_CALL_ALWAYS(cudaMemcpy(mPosCuda, pos.data(), sizeof(Pos) * P, cudaMemcpyHostToDevice));
-    CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void**)&mRotCuda, sizeof(Rot) * P));
-    CUDA_SAFE_CALL_ALWAYS(cudaMemcpy(mRotCuda, rot.data(), sizeof(Rot) * P, cudaMemcpyHostToDevice));
-    CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void**)&mShsCuda, sizeof(SHs<3>) * P));
+    CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void**)&mPosCuda, sizeof(GaussianData::Pos) * P));
+    CUDA_SAFE_CALL_ALWAYS(cudaMemcpy(mPosCuda, pos.data(), sizeof(GaussianData::Pos) * P, cudaMemcpyHostToDevice));
+    CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void**)&mRotCuda, sizeof(GaussianData::Rot) * P));
+    CUDA_SAFE_CALL_ALWAYS(cudaMemcpy(mRotCuda, rot.data(), sizeof(GaussianData::Rot) * P, cudaMemcpyHostToDevice));
+    CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void**)&mShsCuda, sizeof(GaussianData::SHs<3>) * P));
     CUDA_SAFE_CALL_ALWAYS(
-        cudaMemcpy(mShsCuda, shs.data(), sizeof(SHs<3>) * P, cudaMemcpyHostToDevice));
+        cudaMemcpy(mShsCuda, shs.data(), sizeof(GaussianData::SHs<3>) * P, cudaMemcpyHostToDevice));
     CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void**)&mOpacityCuda, sizeof(float) * P));
     CUDA_SAFE_CALL_ALWAYS(
         cudaMemcpy(mOpacityCuda, opacity.data(), sizeof(float) * P, cudaMemcpyHostToDevice));
-    CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void**)&mScaleCuda, sizeof(Scale) * P));
+    CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void**)&mScaleCuda, sizeof(GaussianData::Scale) * P));
     CUDA_SAFE_CALL_ALWAYS(
-        cudaMemcpy(mScaleCuda, scale.data(), sizeof(Scale) * P, cudaMemcpyHostToDevice));
+        cudaMemcpy(mScaleCuda, scale.data(), sizeof(GaussianData::Scale) * P, cudaMemcpyHostToDevice));
 
     // Create space for view parameters
     CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void**)&mViewCuda, sizeof(Matrix4f)));
@@ -308,8 +285,8 @@ void GaussianRenderer::configure(
     float bg[3] = {0.f, 0.f, 0.f};
     CUDA_SAFE_CALL_ALWAYS(cudaMemcpy(mBackgroundCuda, bg, 3 * sizeof(float), cudaMemcpyHostToDevice));
 
-    mData = new GaussianData(P, (float*)pos.data(), (float*)rot.data(), (float*)scale.data(),
-        opacity.data(), (float*)shs.data());
+    mData = new GaussianData(pos, rot, scale,
+        opacity, shs);
 
     mSurfaceRenderer = std::make_shared<SurfaceRenderer>();
     //mSplatRenderer = std::make_shared<SplatRenderer>();
