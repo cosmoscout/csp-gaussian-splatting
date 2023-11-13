@@ -42,7 +42,7 @@ int SurfaceRenderer::draw(int count, const GaussianData& mesh, float limit,glm::
   glUniform3fv(mUniforms.mParamCamPos, 1, glm::value_ptr(camPos));
   glUniform1f(mUniforms.mParamLimit, limit);
   glUniform1i(mUniforms.mParamStage, 0);
-    glDrawArraysInstanced(GL_TRIANGLES, 0, 36, count);
+  //glDrawArraysInstanced(GL_TRIANGLES, 0, 36, count);
 
 
 
