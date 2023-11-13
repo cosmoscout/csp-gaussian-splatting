@@ -12,6 +12,7 @@
 #include "../../../src/cs-core/Settings.hpp"
 #include "../../../src/cs-core/SolarSystem.hpp"
 #include "../../../src/cs-utils/FrameStats.hpp"
+#include "../../../src/cs-utils/convert.hpp"
 
 #include <VistaKernel/GraphicsManager/VistaGraphicsManager.h>
 #include <VistaKernel/GraphicsManager/VistaSceneGraph.h>
@@ -21,6 +22,7 @@
 
 #include <cuda_gl_interop.h>
 #include <fstream>
+#include <glm/gtx/quaternion.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <utility>
 
@@ -268,11 +270,30 @@ bool GaussianRenderer::Do() {
   std::array<GLfloat, 16> glMatP{};
   glGetFloatv(GL_MODELVIEW_MATRIX, glMatV.data());
   glGetFloatv(GL_PROJECTION_MATRIX, glMatP.data());
-  glm::mat4 matM = object->getObserverRelativeTransform(glm::dvec3(513459.f, 5148508.f, 3705575.f),
-    glm::dquat(0.27548176140996283,
-          -0.0487542874446906,
-          -0.05965493729868978,
-          0.9582140194351751), 1.0);
+
+  glm::dvec2 lngLat(cs::utils::convert::toRadians(glm::dvec2(7.889699743962, 54.18056882)));
+  double altitude = 7.0;
+  double scale = 0.31;
+  glm::dquat localRotation(-0.269005,
+          -0.959404,
+          -0.005573,
+          -0.084561);
+
+  auto pos = cs::utils::convert::toCartesian(lngLat, object->getRadii(), altitude);
+  auto normal = cs::utils::convert::lngLatToNormal(lngLat);
+  auto north = glm::dvec3(0.0, 1.0, 0.0);
+
+  auto x = glm::cross(north, normal);
+  auto y = normal;
+  auto z = glm::cross(x, y);
+
+  x = glm::normalize(x);
+  y = glm::normalize(y);
+  z = glm::normalize(z);
+
+  auto rot = glm::toQuat(glm::dmat3(x, y, z)) * localRotation;
+
+  glm::mat4 matM = object->getObserverRelativeTransform(pos, rot, scale);
   glm::mat4 matV = glm::make_mat4x4(glMatV.data());
   glm::mat4 matP = glm::make_mat4x4(glMatP.data());
 
@@ -300,8 +321,8 @@ bool GaussianRenderer::Do() {
 
  float sceneScale = static_cast<float>(1.0 / mSolarSystem->getObserver().getScale());
 
-glm::vec4 viewPos         = glm::inverse(matV * matM) * glm::vec4(0.0F, 0.0F, 0.0F, 1.0F);
-viewPos                   = viewPos / viewPos.w;
+  glm::vec4 viewPos         = glm::inverse(matV * matM) * glm::vec4(0.0F, 0.0F, 0.0F, 1.0F);
+  viewPos                   = viewPos / viewPos.w;
 
   //mSurfaceRenderer->draw(mCount, *mData, 0.2f, viewPos, matP * matV * matM);
   mSplatRenderer->draw(1.f, mCount, *mData, viewPos, matV * matM, matP);

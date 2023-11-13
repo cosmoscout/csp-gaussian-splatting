@@ -32,16 +32,17 @@ void main(void)
 	}
 
 	int x = int(texcoord.x * width);
-	int y;
-	
-	if(flip)
-		y = height - 1 - int(texcoord.y * height);
-	else
-		y = int(texcoord.y * height);
-	
+	int y = height - 1 - int(texcoord.y * height);
+
 	float r = source.data[0 * width * height + (y * width + x)];
 	float g = source.data[1 * width * height + (y * width + x)];
 	float b = source.data[2 * width * height + (y * width + x)];
-    vec4 color   = vec4(r, g, b, 1);
+	float a = source.data[4 * width * height + (y * width + x)];
+
+	if (a > 0.2) {
+		discard;
+	}
+
+    vec4 color   = vec4(r, g, b, a);
     out_color    = color;
 }

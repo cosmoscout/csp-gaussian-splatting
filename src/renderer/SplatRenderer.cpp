@@ -38,18 +38,18 @@ mWidth(render_w), mHeight(render_h) {
   CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void**)&mViewCuda, sizeof(Matrix4f)));
   CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void**)&mProjCuda, sizeof(Matrix4f)));
   CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void**)&mCamPosCuda, 3 * sizeof(float)));
-  CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void**)&mBackgroundCuda, 3 * sizeof(float)));
+  CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void**)&mBackgroundCuda, 4 * sizeof(float)));
   
 
-  float bg[3] = {0.f, 0.f, 0.f};
-  CUDA_SAFE_CALL_ALWAYS(cudaMemcpy(mBackgroundCuda, bg, 3 * sizeof(float), cudaMemcpyHostToDevice));
+  float bg[4] = {0.f, 0.f, 0.f, 0.f};
+  CUDA_SAFE_CALL_ALWAYS(cudaMemcpy(mBackgroundCuda, bg, 4 * sizeof(float), cudaMemcpyHostToDevice));
 
   // Create GL buffer ready for CUDA/GL interop
   bool useInterop = true;
 
   glCreateBuffers(1, &mImageBuffer);
   glNamedBufferStorage(
-      mImageBuffer, render_w * render_h * 3 * sizeof(float), nullptr, GL_DYNAMIC_STORAGE_BIT);
+      mImageBuffer, render_w * render_h * 4 * sizeof(float), nullptr, GL_DYNAMIC_STORAGE_BIT);
 
   if (useInterop) {
     if (cudaPeekAtLastError() != cudaSuccess) {
@@ -127,13 +127,16 @@ void SplatRenderer::draw(float scale, int count,
   float tan_fovx = tan_fovy * eye.aspect();
   */
 
- matMV[3][0] *= -1.f;
- matMV[3][1] *= -1.f;
- matMV[3][2] *= -1.f;
+ // matMV[3][0] *= -1.f;
+ // matMV[3][1] *= -1.f;
+ // matMV[3][2] *= -1.f;
 
-  //matMV = glm::row(matMV, 0, -1.f * glm::row(matMV, 0));
-  //matMV = glm::row(matMV, 1, -1.f * glm::row(matMV, 1));
-  //matP = glm::row(matP, 0, -1.f * glm::row(matP, 0));
+
+  matP = matP * matMV;
+
+  matMV = glm::row(matMV, 1, -1.f * glm::row(matMV, 1));
+  matMV = glm::row(matMV, 2, -1.f * glm::row(matMV, 2));
+  matP = glm::row(matP, 1, -1.f * glm::row(matP, 1));
 
   float tan_fovy = tan(1.0f * 0.5f);
   float tan_fovx = tan_fovy * (1.f * mWidth / mHeight);
@@ -142,7 +145,7 @@ void SplatRenderer::draw(float scale, int count,
   CUDA_SAFE_CALL(
       cudaMemcpy(mViewCuda, glm::value_ptr(matMV), sizeof(glm::mat4), cudaMemcpyHostToDevice));
   CUDA_SAFE_CALL(
-      cudaMemcpy(mProjCuda, glm::value_ptr(matP * matMV), sizeof(glm::mat4), cudaMemcpyHostToDevice));
+      cudaMemcpy(mProjCuda, glm::value_ptr(matP), sizeof(glm::mat4), cudaMemcpyHostToDevice));
   CUDA_SAFE_CALL(
       cudaMemcpy(mCamPosCuda, glm::value_ptr(camPos), sizeof(float) * 3, cudaMemcpyHostToDevice));
   
@@ -186,6 +189,7 @@ void SplatRenderer::draw(float scale, int count,
   mCopyShader.Bind();
 
   glDisable(GL_DEPTH_TEST);
+  glEnable(GL_BLEND);
   glDepthMask(GL_FALSE);
 
   glUniform1i(mUniforms.mWidth, mWidth);
@@ -195,6 +199,7 @@ void SplatRenderer::draw(float scale, int count,
   glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
   glEnable(GL_DEPTH_TEST);
+  glDisable(GL_BLEND);
   glDepthMask(GL_TRUE);
 
   mCopyShader.Release();
