@@ -32,8 +32,7 @@ namespace csp::gaussiansplatting {
 
 typedef	Eigen::Matrix<float, 4, 4, Eigen::DontAlign, 4, 4>	Matrix4f;
 
-SplatRenderer::SplatRenderer(uint32_t render_w, uint32_t render_h):
-mWidth(render_w), mHeight(render_h) {
+SplatRenderer::SplatRenderer() {
  // Create space for view parameters
   CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void**)&mViewCuda, sizeof(Matrix4f)));
   CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void**)&mProjCuda, sizeof(Matrix4f)));
@@ -43,27 +42,6 @@ mWidth(render_w), mHeight(render_h) {
   // The background color is actually not used.
   float bg[3] = {0.f, 0.f, 0.f};
   CUDA_SAFE_CALL_ALWAYS(cudaMemcpy(mBackgroundCuda, bg, 3 * sizeof(float), cudaMemcpyHostToDevice));
-
-  // Create GL buffer ready for CUDA/GL interop
-  bool useInterop = true;
-
-  glCreateBuffers(1, &mImageBuffer);
-  glNamedBufferStorage(
-      mImageBuffer, render_w * render_h * 4 * sizeof(float), nullptr, GL_DYNAMIC_STORAGE_BIT);
-
-  if (useInterop) {
-    if (cudaPeekAtLastError() != cudaSuccess) {
-      logger().error("A CUDA error occurred in setup: {}", cudaGetErrorString(cudaGetLastError()));
-    }
-    cudaGraphicsGLRegisterBuffer(
-        &mImageBufferCuda, mImageBuffer, cudaGraphicsRegisterFlagsWriteDiscard);
-    useInterop &= (cudaGetLastError() == cudaSuccess);
-  }
-  if (!useInterop) {
-    mFallbackBytes.resize(render_w * render_h * 4 * sizeof(float));
-    cudaMalloc(&mFallbackBufferCuda, mFallbackBytes.size());
-    mInteropFailed = true;
-  }
 
   auto resizeFunctional = [](void** ptr, size_t& S) {
     auto lambda = [ptr, &S](size_t N) {
@@ -114,22 +92,15 @@ SplatRenderer::~SplatRenderer() {
 void SplatRenderer::draw(float scale, int count,
      const GaussianData& mesh,
      glm::vec3 const& camPos, glm::mat4 matMV, glm::mat4 matP) {
-  /*
-  // Convert view and projection to target coordinate system
-  auto view_mat = eye.view();
-  auto proj_mat = eye.viewproj();
-  view_mat.row(1) *= -1;
-  view_mat.row(2) *= -1;
-  proj_mat.row(1) *= -1;
-
-  // Compute additional view parameters
-  float tan_fovy = tan(eye.fovy() * 0.5f);
-  float tan_fovx = tan_fovy * eye.aspect();
-  */
+    
+     std::array<GLint, 4> current_viewport{};
+  glGetIntegerv(GL_VIEWPORT, current_viewport.data());
+  createBuffers(current_viewport[2], current_viewport[3]);  
 
   float tan_fovy = 1.f / matP[1][1];
   float tan_fovx = tan_fovy * (1.f * mWidth / mHeight);
 
+  // Convert view and projection to target coordinate system
   matP = matP * matMV;
   matMV = glm::row(matMV, 1, -1.f * glm::row(matMV, 1));
   matMV = glm::row(matMV, 2, -1.f * glm::row(matMV, 2));
@@ -205,6 +176,46 @@ void SplatRenderer::draw(float scale, int count,
  
 }
 
+void SplatRenderer::createBuffers(uint32_t width, uint32_t height) {
+  if (mWidth != width || mHeight != height) {
 
+    // Clean any previous buffer
+    if (mImageBufferCuda && !mInteropFailed) {
+      cudaGraphicsUnregisterResource(mImageBufferCuda);
+    } else if (mFallbackBufferCuda) {
+      cudaFree(mFallbackBufferCuda);
+    }
+
+    if (mImageBuffer) {
+      glDeleteBuffers(1, &mImageBuffer);
+    }
+
+    // Create GL buffer ready for CUDA/GL interop
+    bool useInterop = true;
+
+    glCreateBuffers(1, &mImageBuffer);
+    glNamedBufferStorage(
+        mImageBuffer, width * height * 4 * sizeof(float), nullptr, GL_DYNAMIC_STORAGE_BIT);
+
+    if (useInterop) {
+      if (cudaPeekAtLastError() != cudaSuccess) {
+        logger().error("A CUDA error occurred in setup: {}", cudaGetErrorString(cudaGetLastError()));
+      }
+      cudaGraphicsGLRegisterBuffer(
+          &mImageBufferCuda, mImageBuffer, cudaGraphicsRegisterFlagsWriteDiscard);
+      useInterop &= (cudaGetLastError() == cudaSuccess);
+    }
+
+    if (!useInterop) {
+      mFallbackBytes.resize(width * height * 4 * sizeof(float));
+      cudaMalloc(&mFallbackBufferCuda, mFallbackBytes.size());
+      mInteropFailed = true;
+    }
+
+    mWidth = width;
+    mHeight = height;
+  }
+
+}
 
 }

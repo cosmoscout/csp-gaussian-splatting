@@ -30,7 +30,7 @@ class BufferCopyRenderer;
 class SplatRenderer {
 
  public:
-  SplatRenderer(uint32_t render_w, uint32_t render_h);
+  SplatRenderer();
   virtual ~SplatRenderer();
 
   void draw(float scale, int count,
@@ -38,6 +38,8 @@ class SplatRenderer {
       glm::vec3 const& camPos,  glm::mat4  matMV,  glm::mat4  matP);
 
  private:
+  void createBuffers(uint32_t width, uint32_t height);
+
   float* mViewCuda = nullptr;
   float* mProjCuda = nullptr;
   float* mCamPosCuda = nullptr;

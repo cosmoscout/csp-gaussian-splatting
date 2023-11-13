@@ -213,7 +213,7 @@ void GaussianRenderer::configure(
     mData = new GaussianData(pos, rot, scale, opacity, shs);
 
     mSurfaceRenderer = std::make_shared<SurfaceRenderer>();
-    mSplatRenderer = std::make_shared<SplatRenderer>(1600, 900);
+    mSplatRenderer = std::make_shared<SplatRenderer>();
   }
 }
 
