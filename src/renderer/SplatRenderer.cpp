@@ -38,11 +38,11 @@ mWidth(render_w), mHeight(render_h) {
   CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void**)&mViewCuda, sizeof(Matrix4f)));
   CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void**)&mProjCuda, sizeof(Matrix4f)));
   CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void**)&mCamPosCuda, 3 * sizeof(float)));
-  CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void**)&mBackgroundCuda, 4 * sizeof(float)));
+  CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void**)&mBackgroundCuda, 3 * sizeof(float)));
   
-
-  float bg[4] = {0.f, 0.f, 0.f, 0.f};
-  CUDA_SAFE_CALL_ALWAYS(cudaMemcpy(mBackgroundCuda, bg, 4 * sizeof(float), cudaMemcpyHostToDevice));
+  // The background color is actually not used.
+  float bg[3] = {0.f, 0.f, 0.f};
+  CUDA_SAFE_CALL_ALWAYS(cudaMemcpy(mBackgroundCuda, bg, 3 * sizeof(float), cudaMemcpyHostToDevice));
 
   // Create GL buffer ready for CUDA/GL interop
   bool useInterop = true;
@@ -60,7 +60,7 @@ mWidth(render_w), mHeight(render_h) {
     useInterop &= (cudaGetLastError() == cudaSuccess);
   }
   if (!useInterop) {
-    mFallbackBytes.resize(render_w * render_h * 3 * sizeof(float));
+    mFallbackBytes.resize(render_w * render_h * 4 * sizeof(float));
     cudaMalloc(&mFallbackBufferCuda, mFallbackBytes.size());
     mInteropFailed = true;
   }
@@ -127,19 +127,13 @@ void SplatRenderer::draw(float scale, int count,
   float tan_fovx = tan_fovy * eye.aspect();
   */
 
- // matMV[3][0] *= -1.f;
- // matMV[3][1] *= -1.f;
- // matMV[3][2] *= -1.f;
-
+  float tan_fovy = 1.f / matP[1][1];
+  float tan_fovx = tan_fovy * (1.f * mWidth / mHeight);
 
   matP = matP * matMV;
-
   matMV = glm::row(matMV, 1, -1.f * glm::row(matMV, 1));
   matMV = glm::row(matMV, 2, -1.f * glm::row(matMV, 2));
   matP = glm::row(matP, 1, -1.f * glm::row(matP, 1));
-
-  float tan_fovy = tan(1.0f * 0.5f);
-  float tan_fovx = tan_fovy * (1.f * mWidth / mHeight);
 
   // Copy frame-dependent data to GPU
   CUDA_SAFE_CALL(
@@ -190,6 +184,7 @@ void SplatRenderer::draw(float scale, int count,
 
   glDisable(GL_DEPTH_TEST);
   glEnable(GL_BLEND);
+  glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
   glDepthMask(GL_FALSE);
 
   glUniform1i(mUniforms.mWidth, mWidth);

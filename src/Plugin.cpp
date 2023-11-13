@@ -34,10 +34,20 @@ namespace csp::gaussiansplatting {
 
 void from_json(nlohmann::json const& j, Plugin::Settings::RadianceField& o) {
   cs::core::Settings::deserialize(j, "ply", o.mPLY);
+  cs::core::Settings::deserialize(j, "object", o.mObject);
+  cs::core::Settings::deserialize(j, "lnglat", o.mLngLat);
+  cs::core::Settings::deserialize(j, "rotation", o.mRotation);
+  cs::core::Settings::deserialize(j, "scale", o.mScale);
+  cs::core::Settings::deserialize(j, "altitude", o.mAltitude);
 }
 
 void to_json(nlohmann::json& j, Plugin::Settings::RadianceField const& o) {
   cs::core::Settings::serialize(j, "ply", o.mPLY);
+  cs::core::Settings::serialize(j, "object", o.mObject);
+  cs::core::Settings::serialize(j, "lnglat", o.mLngLat);
+  cs::core::Settings::serialize(j, "rotation", o.mRotation);
+  cs::core::Settings::serialize(j, "scale", o.mScale);
+  cs::core::Settings::serialize(j, "altitude", o.mAltitude);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -45,13 +55,11 @@ void to_json(nlohmann::json& j, Plugin::Settings::RadianceField const& o) {
 void from_json(nlohmann::json const& j, Plugin::Settings& o) {
   cs::core::Settings::deserialize(j, "radianceFields", o.mRadianceFields);
   cs::core::Settings::deserialize(j, "cudaDevice", o.mCudaDevice);
-  cs::core::Settings::deserialize(j, "shDegree", o.mSHDegree);
 }
 
 void to_json(nlohmann::json& j, Plugin::Settings const& o) {
   cs::core::Settings::serialize(j, "radianceFields", o.mRadianceFields);
   cs::core::Settings::serialize(j, "cudaDevice", o.mCudaDevice);
-  cs::core::Settings::serialize(j, "shDegree", o.mSHDegree);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -94,7 +102,7 @@ void Plugin::onLoad() {
   // Then add new renderers.
   for (auto const& settings : mPluginSettings.mRadianceFields) {
     auto renderer = std::make_shared<GaussianRenderer>(mAllSettings, mSolarSystem, "Earth");
-    renderer->configure(settings, mPluginSettings.mCudaDevice.get(), mPluginSettings.mSHDegree.get());
+    renderer->configure(settings, mPluginSettings.mCudaDevice.get());
     mRenderers.push_back(renderer);
   }
 }
@@ -108,9 +116,6 @@ void Plugin::onSave() {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void Plugin::update() {
-  for (auto const& renderer : mRenderers) {
-    renderer->update();
-  }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

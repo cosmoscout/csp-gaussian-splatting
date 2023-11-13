@@ -11,6 +11,8 @@
 #include "../../../src/cs-core/PluginBase.hpp"
 #include "../../../src/cs-utils/DefaultProperty.hpp"
 
+#include <glm/glm.hpp>
+#include <glm/gtx/quaternion.hpp>
 #include <string>
 #include <vector>
 
@@ -23,11 +25,15 @@ class Plugin : public cs::core::PluginBase {
   struct Settings {
     struct RadianceField {
       std::string mPLY;
+      std::string mObject;
+      glm::dvec2 mLngLat;
+      cs::utils::DefaultProperty<glm::dquat> mRotation{glm::dquat(1.0, 0.0, 0.0, 0.0)};
+      cs::utils::DefaultProperty<double> mScale{1.0};
+      cs::utils::DefaultProperty<double> mAltitude{0.0};
     };
 
     std::vector<RadianceField>          mRadianceFields;
     cs::utils::DefaultProperty<int32_t> mCudaDevice{0};
-    cs::utils::DefaultProperty<int32_t> mSHDegree{3};
   };
 
   void init() override;

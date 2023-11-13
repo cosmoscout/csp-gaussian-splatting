@@ -162,12 +162,6 @@ GaussianRenderer::GaussianRenderer(std::shared_ptr<cs::core::Settings> settings,
     , mSettings(std::move(settings))
     , mSolarSystem(std::move(solarSystem)) {
 
-  // Recreate the shader if HDR rendering mode is toggled.
-  mEnableLightingConnection = mSettings->mGraphics.pEnableLighting.connect(
-      [this](bool /*enabled*/) { });
-  mEnableHDRConnection =
-      mSettings->mGraphics.pEnableHDR.connect([this](bool /*enabled*/) {  });
-
   // Add to scenegraph.
   VistaSceneGraph* pSG = GetVistaSystem()->GetGraphicsManager()->GetSceneGraph();
   mGLNode.reset(pSG->NewOpenGLNode(pSG->GetRoot(), this));
@@ -178,9 +172,6 @@ GaussianRenderer::GaussianRenderer(std::shared_ptr<cs::core::Settings> settings,
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 GaussianRenderer::~GaussianRenderer() {
-  mSettings->mGraphics.pEnableLighting.disconnect(mEnableLightingConnection);
-  mSettings->mGraphics.pEnableHDR.disconnect(mEnableHDRConnection);
-
   VistaSceneGraph* pSG = GetVistaSystem()->GetGraphicsManager()->GetSceneGraph();
   pSG->GetRoot()->DisconnectChild(mGLNode.get());
 }
@@ -188,14 +179,13 @@ GaussianRenderer::~GaussianRenderer() {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void GaussianRenderer::configure(
-    Plugin::Settings::RadianceField const& settings, int32_t cudaDevice, int32_t shDegree) {
+    Plugin::Settings::RadianceField const& settings, int32_t cudaDevice) {
 
-  if (mRadianceField.mPLY != settings.mPLY || mCudaDevice != cudaDevice || mSHDegree != shDegree ) {
+  if (mRadianceField.mPLY != settings.mPLY || mCudaDevice != cudaDevice ) {
     logger().info("Loading PLY {}", settings.mPLY);
 
     mRadianceField = settings;
     mCudaDevice = cudaDevice;
-    mSHDegree = shDegree;
 
     int num_devices;
     CUDA_SAFE_CALL_ALWAYS(cudaGetDeviceCount(&num_devices));
@@ -217,41 +207,20 @@ void GaussianRenderer::configure(
     std::vector<GaussianData::Scale>  scale;
     std::vector<float>  opacity;
     std::vector<GaussianData::SHs<3>> shs;
-    if (mSHDegree == 0) {
-      mCount = loadPly<0>(mRadianceField.mPLY.c_str(), pos, shs, opacity, scale, rot, mSceneMin, mSceneMax);
-    } else if (mSHDegree == 1) {
-      mCount = loadPly<1>(mRadianceField.mPLY.c_str(), pos, shs, opacity, scale, rot, mSceneMin, mSceneMax);
-    } else if (mSHDegree == 2) {
-      mCount = loadPly<2>(mRadianceField.mPLY.c_str(), pos, shs, opacity, scale, rot, mSceneMin, mSceneMax);
-    } else if (mSHDegree == 3) {
-      mCount = loadPly<3>(mRadianceField.mPLY.c_str(), pos, shs, opacity, scale, rot, mSceneMin, mSceneMax);
-    }
 
-     mData = new GaussianData(pos, rot, scale,
-        opacity, shs);
+    const int shDegree = 3;
+    mCount = loadPly<shDegree>(mRadianceField.mPLY.c_str(), pos, shs, opacity, scale, rot, mSceneMin, mSceneMax);
+    mData = new GaussianData(pos, rot, scale, opacity, shs);
 
     mSurfaceRenderer = std::make_shared<SurfaceRenderer>();
     mSplatRenderer = std::make_shared<SplatRenderer>(1600, 900);
   }
-
-  // Set radius for visibility culling.
-  setRadii(glm::dvec3(10000));
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 Plugin::Settings::RadianceField const& GaussianRenderer::getRadianceField() {
   return mRadianceField;
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-void GaussianRenderer::update() {
-  auto object = mSolarSystem->getObject(mObjectName);
-
-  if (object && object->getIsBodyVisible()) {
-    //
-  }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -271,15 +240,8 @@ bool GaussianRenderer::Do() {
   glGetFloatv(GL_MODELVIEW_MATRIX, glMatV.data());
   glGetFloatv(GL_PROJECTION_MATRIX, glMatP.data());
 
-  glm::dvec2 lngLat(cs::utils::convert::toRadians(glm::dvec2(7.889699743962, 54.18056882)));
-  double altitude = 7.0;
-  double scale = 0.31;
-  glm::dquat localRotation(-0.269005,
-          -0.959404,
-          -0.005573,
-          -0.084561);
-
-  auto pos = cs::utils::convert::toCartesian(lngLat, object->getRadii(), altitude);
+  glm::dvec2 lngLat(cs::utils::convert::toRadians(mRadianceField.mLngLat));
+  auto pos = cs::utils::convert::toCartesian(lngLat, object->getRadii(), mRadianceField.mAltitude.get());
   auto normal = cs::utils::convert::lngLatToNormal(lngLat);
   auto north = glm::dvec3(0.0, 1.0, 0.0);
 
@@ -291,33 +253,11 @@ bool GaussianRenderer::Do() {
   y = glm::normalize(y);
   z = glm::normalize(z);
 
-  auto rot = glm::toQuat(glm::dmat3(x, y, z)) * localRotation;
+  auto rot = glm::toQuat(glm::dmat3(x, y, z)) * mRadianceField.mRotation.get();
 
-  glm::mat4 matM = object->getObserverRelativeTransform(pos, rot, scale);
+  glm::mat4 matM = object->getObserverRelativeTransform(pos, rot, mRadianceField.mScale.get());
   glm::mat4 matV = glm::make_mat4x4(glMatV.data());
   glm::mat4 matP = glm::make_mat4x4(glMatP.data());
-
-/*
-    float sunIlluminance(1.F);
-    float ambientBrightness(mSettings->mGraphics.pAmbientBrightness.get());
-
-    // If HDR is enabled, the illuminance has to be calculated based on the scene's scale and the
-    // distance to the Sun.
-    if (mSettings->mGraphics.pEnableHDR.get()) {
-      sunIlluminance = static_cast<float>(mSolarSystem->getSunIlluminance(matM[3]));
-    }
-
-    Vector3f sunDirection =
-        glm::inverse(matM) * glm::dvec4(mSolarSystem->getSunDirection(matM[3]), 0.0);
-
-    // Some calculations to get the view and plane normal in view space.
-    glm::mat4 matModelView    = matV * matM;
-    glm::mat4 matNormalMatrix = glm::transpose(glm::inverse(matModelView));
-    glm::vec4 viewPos         = matModelView * glm::vec4(0.0F, 0.0F, 0.0F, 1.0F);
-    viewPos                   = viewPos / viewPos.w;
-    Vector3f planeNormal     = glm::normalize(-viewPos.xyz());
-    Vector3f viewNormal      = (matNormalMatrix * glm::vec4(0.0F, 1.0F, 0.0F, 0.0F)).xyz();
-  */
 
  float sceneScale = static_cast<float>(1.0 / mSolarSystem->getObserver().getScale());
 

@@ -32,7 +32,7 @@ class SolarSystem;
 
 namespace csp::gaussiansplatting {
 
-class GaussianRenderer : public cs::scene::CelestialObject, public IVistaOpenGLDraw {
+class GaussianRenderer : public IVistaOpenGLDraw {
  public:
   typedef Eigen::Matrix<float, 3, 1, Eigen::DontAlign> Vector3f;
   typedef Eigen::Matrix<int, 3, 1, Eigen::DontAlign>   Vector3i;
@@ -49,10 +49,8 @@ class GaussianRenderer : public cs::scene::CelestialObject, public IVistaOpenGLD
   ~GaussianRenderer() override;
 
   /// Configures the internal renderer according to the given values.
-  void configure(Plugin::Settings::RadianceField const& settings, int32_t cudaDevice, int32_t shDegree);
+  void configure(Plugin::Settings::RadianceField const& settings, int32_t cudaDevice);
   Plugin::Settings::RadianceField const& getRadianceField();
-
-  void update();
 
   bool Do() override;
   bool GetBoundingBox(VistaBoundingBox& bb) override;
@@ -69,11 +67,7 @@ class GaussianRenderer : public cs::scene::CelestialObject, public IVistaOpenGLD
 
   Plugin::Settings::RadianceField mRadianceField;
 
-  int  mEnableLightingConnection = -1;
-  int  mEnableHDRConnection      = -1;
-
   int32_t mCudaDevice = 0;
-  int32_t mSHDegree = 0;
   int32_t mCount = 0;
 
   Vector3f mSceneMin{};
