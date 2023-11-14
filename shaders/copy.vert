@@ -1,3 +1,11 @@
+////////////////////////////////////////////////////////////////////////////////////////////////////
+//                               This file is part of CosmoScout VR                               //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// SPDX-FileCopyrightText: German Aerospace Center (DLR) <cosmoscout@dlr.de>
+// SPDX-FileCopyrightText: Copyright (C) 2023, Inria, GRAPHDECO research group
+// SPDX-License-Identifier: LicenseRef-InriaLicense
+
 #version 450
 
 out vec2 texcoord;

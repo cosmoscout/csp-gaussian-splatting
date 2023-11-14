@@ -148,6 +148,7 @@ void Plugin::onLoad() {
   // Read settings from JSON.
   from_json(mAllSettings->mPlugins.at("csp-gaussian-splatting"), *mPluginSettings);
 
+  // For now, we reload everything. This could be optimized to re-use as many renderers as possible.
   mRenderers.clear();
 
   // Then add new renderers.
@@ -162,11 +163,6 @@ void Plugin::onLoad() {
 
 void Plugin::onSave() {
   mAllSettings->mPlugins["csp-gaussian-splatting"] = *mPluginSettings;
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-void Plugin::update() {
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

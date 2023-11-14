@@ -1,13 +1,10 @@
-/*
- * Copyright (C) 2023, Inria
- * GRAPHDECO research group, https://team.inria.fr/graphdeco
- * All rights reserved.
- *
- * This software is free for non-commercial, research and evaluation use
- * under the terms of the LICENSE.md file.
- *
- * For inquiries contact sibr@inria.fr and/or George.Drettakis@inria.fr
- */
+////////////////////////////////////////////////////////////////////////////////////////////////////
+//                               This file is part of CosmoScout VR                               //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// SPDX-FileCopyrightText: German Aerospace Center (DLR) <cosmoscout@dlr.de>
+// SPDX-FileCopyrightText: Copyright (C) 2023, Inria, GRAPHDECO research group
+// SPDX-License-Identifier: LicenseRef-InriaLicense
 
 #include "../../../../src/cs-utils/filesystem.hpp"
 
@@ -16,6 +13,8 @@
 #include <glm/gtc/matrix_access.hpp>
 #include <rasterizer.h>
 #include <thread>
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #define CUDA_SAFE_CALL_ALWAYS(A)                                                                   \
   A;                                                                                               \
@@ -29,9 +28,15 @@
 #define CUDA_SAFE_CALL(A) A
 #endif
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 namespace csp::gaussiansplatting {
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 typedef	Eigen::Matrix<float, 4, 4, Eigen::DontAlign, 4, 4>	Matrix4f;
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 SplatRenderer::SplatRenderer() {
  // Create space for view parameters
@@ -69,6 +74,8 @@ SplatRenderer::SplatRenderer() {
   mUniforms.mHeight = glGetUniformLocation(mCopyShader.GetProgram(), "height");
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 SplatRenderer::~SplatRenderer() {
   cudaFree(mViewCuda);
   cudaFree(mProjCuda);
@@ -91,6 +98,8 @@ SplatRenderer::~SplatRenderer() {
   if (mImgPtr)
     cudaFree(mImgPtr);
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void SplatRenderer::draw(float scale, int count, bool doFade,
      const GaussianData& mesh,
@@ -169,6 +178,8 @@ void SplatRenderer::draw(float scale, int count, bool doFade,
  
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 SplatRenderer::ViewportData& SplatRenderer::getCurrentViewportData() {
 
   std::array<GLint, 4> viewportExtent{};
@@ -198,8 +209,6 @@ SplatRenderer::ViewportData& SplatRenderer::getCurrentViewportData() {
 
 
   if (needsRecreation) {
-
-    std::cout << "#####################################" << std::endl;
 
     ViewportData data;
 
@@ -233,5 +242,7 @@ SplatRenderer::ViewportData& SplatRenderer::getCurrentViewportData() {
 
   return mViewportData[vistaViewport];
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 }

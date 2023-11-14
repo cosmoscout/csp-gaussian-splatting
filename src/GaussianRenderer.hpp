@@ -3,15 +3,14 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 // SPDX-FileCopyrightText: German Aerospace Center (DLR) <cosmoscout@dlr.de>
-// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: Copyright (C) 2023, Inria, GRAPHDECO research group
+// SPDX-License-Identifier: LicenseRef-InriaLicense
 
 #ifndef CSP_GAUSSIAN_SPLATTING_GAUSSIAN_RENDERER_HPP
 #define CSP_GAUSSIAN_SPLATTING_GAUSSIAN_RENDERER_HPP
 
 #include "Plugin.hpp"
-#include "../externals/Eigen/Eigen"
 #include "renderer/GaussianData.hpp"
-
 #include "renderer/SplatRenderer.hpp"
 #include "renderer/SurfaceRenderer.hpp"
 
@@ -32,11 +31,11 @@ class SolarSystem;
 
 namespace csp::gaussiansplatting {
 
+/// This class manages drawing of a single radiance field. It provides two ways for drawing the given
+/// radiance field: Either using a very simple approach using instanced rendering of tiny boxes, or
+/// via the splat raycasting developed for the original gaussian splatting paper.
 class GaussianRenderer : public IVistaOpenGLDraw {
  public:
-  typedef Eigen::Matrix<float, 3, 1, Eigen::DontAlign> Vector3f;
-  typedef Eigen::Matrix<int, 3, 1, Eigen::DontAlign>   Vector3i;
-  
   GaussianRenderer(std::shared_ptr<cs::core::Settings> settings,
       std::shared_ptr<cs::core::SolarSystem> solarSystem, std::string objectName);
 
@@ -50,29 +49,21 @@ class GaussianRenderer : public IVistaOpenGLDraw {
 
   /// Configures the internal renderer according to the given values.
   void configure(Plugin::Settings::RadianceField const& settings, std::shared_ptr<Plugin::Settings> pluginSettings);
-  Plugin::Settings::RadianceField const& getRadianceField();
 
   bool Do() override;
   bool GetBoundingBox(VistaBoundingBox& bb) override;
 
  private:
-
-  void loadPLY();
-
+  std::shared_ptr<cs::core::SolarSystem> mSolarSystem;
   std::string                            mObjectName;
   std::shared_ptr<cs::core::Settings>    mSettings;
-  std::shared_ptr<cs::core::SolarSystem> mSolarSystem;
+  std::shared_ptr<Plugin::Settings> mPluginSettings;
 
   std::unique_ptr<VistaOpenGLNode> mGLNode;
-
-  std::shared_ptr<Plugin::Settings> mPluginSettings;
   Plugin::Settings::RadianceField mRadianceField;
 
   int32_t mCudaDevice = 0;
   int32_t mCount = 0;
-
-  Vector3f mSceneMin{};
-  Vector3f mSceneMax{};
 
   GaussianData* mData;
   

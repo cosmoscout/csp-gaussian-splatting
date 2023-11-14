@@ -1,18 +1,16 @@
-/*
- * Copyright (C) 2023, Inria
- * GRAPHDECO research group, https://team.inria.fr/graphdeco
- * All rights reserved.
- *
- * This software is free for non-commercial, research and evaluation use
- * under the terms of the LICENSE.md file.
- *
- * For inquiries contact sibr@inria.fr and/or George.Drettakis@inria.fr
- */
+////////////////////////////////////////////////////////////////////////////////////////////////////
+//                               This file is part of CosmoScout VR                               //
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
+// SPDX-FileCopyrightText: German Aerospace Center (DLR) <cosmoscout@dlr.de>
+// SPDX-FileCopyrightText: Copyright (C) 2023, Inria, GRAPHDECO research group
+// SPDX-License-Identifier: LicenseRef-InriaLicense
 
 #include "GaussianData.hpp"
 
 #include <cuda_runtime.h>
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #define CUDA_SAFE_CALL_ALWAYS(A)                                                                   \
   A;                                                                                               \
@@ -26,7 +24,11 @@
 #define CUDA_SAFE_CALL(A) A
 #endif
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 namespace csp::gaussiansplatting {
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 GaussianData::GaussianData(std::vector<Pos> const& pos, std::vector<Rot> const& rot, std::vector<Scale> const& scale,
       std::vector<float> const& alpha, std::vector<SHs<3>> const& color)
@@ -55,8 +57,9 @@ GaussianData::GaussianData(std::vector<Pos> const& pos, std::vector<Rot> const& 
     CUDA_SAFE_CALL_ALWAYS(cudaMemcpy(mOpacityCuda, alpha.data(), sizeof(float) * count, cudaMemcpyHostToDevice));
     CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void**)&mScaleCuda, sizeof(Scale) * count));
     CUDA_SAFE_CALL_ALWAYS(cudaMemcpy(mScaleCuda, scale.data(), sizeof(Scale) * count, cudaMemcpyHostToDevice));
-    CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void**)&mRectCuda, 2 * count * sizeof(int)));
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 GaussianData::~GaussianData() {
     glDeleteBuffers(1, &mPosOpenGL);
@@ -70,7 +73,8 @@ GaussianData::~GaussianData() {
     cudaFree(mScaleCuda);
     cudaFree(mOpacityCuda);
     cudaFree(mShsCuda);
-    cudaFree(mRectCuda);
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 }

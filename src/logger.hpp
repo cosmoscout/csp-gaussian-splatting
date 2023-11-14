@@ -12,7 +12,7 @@
 
 namespace csp::gaussiansplatting {
 
-/// This creates the default singleton logger for "csp-rings" when called for the first time
+/// This creates the default singleton logger for "csp-gaussiansplatting" when called for the first time
 /// and returns it. See cs-utils/logger.hpp for more logging details.
 spdlog::logger& logger();
 

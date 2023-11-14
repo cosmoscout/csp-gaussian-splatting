@@ -1,13 +1,10 @@
-/*
- * Copyright (C) 2023, Inria
- * GRAPHDECO research group, https://team.inria.fr/graphdeco
- * All rights reserved.
- *
- * This software is free for non-commercial, research and evaluation use
- * under the terms of the LICENSE.md file.
- *
- * For inquiries contact sibr@inria.fr and/or George.Drettakis@inria.fr
- */
+////////////////////////////////////////////////////////////////////////////////////////////////////
+//                               This file is part of CosmoScout VR                               //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// SPDX-FileCopyrightText: German Aerospace Center (DLR) <cosmoscout@dlr.de>
+// SPDX-FileCopyrightText: Copyright (C) 2023, Inria, GRAPHDECO research group
+// SPDX-License-Identifier: LicenseRef-InriaLicense
 
 #ifndef CSP_GAUSSIAN_SPLATTING_GAUSSIAN_SURFACE_RENDERER_HPP
 #define CSP_GAUSSIAN_SPLATTING_GAUSSIAN_SURFACE_RENDERER_HPP
@@ -17,6 +14,10 @@
 
 namespace csp::gaussiansplatting {
 
+/// This is a very simple renderer which draws the given radiance field point cloud using instanced
+/// rendering. It can be used for debugging as radiance field data as it is much easier than the SplatRenderer.
+/// Rendering happens in two stages: first, the more opaque splats are drawn with depth testing enabled, then
+/// the more transparent splats are drawn additively on top.
 class SurfaceRenderer {
 
  public:

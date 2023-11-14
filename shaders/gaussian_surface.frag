@@ -1,13 +1,10 @@
-/*
- * Copyright (C) 2023, Inria
- * GRAPHDECO research group, https://team.inria.fr/graphdeco
- * All rights reserved.
- *
- * This software is free for non-commercial, research and evaluation use 
- * under the terms of the LICENSE.md file.
- *
- * For inquiries contact sibr@inria.fr and/or George.Drettakis@inria.fr
- */
+////////////////////////////////////////////////////////////////////////////////////////////////////
+//                               This file is part of CosmoScout VR                               //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// SPDX-FileCopyrightText: German Aerospace Center (DLR) <cosmoscout@dlr.de>
+// SPDX-FileCopyrightText: Copyright (C) 2023, Inria, GRAPHDECO research group
+// SPDX-License-Identifier: LicenseRef-InriaLicense
 
 #version 430
 

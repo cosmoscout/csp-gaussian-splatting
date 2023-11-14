@@ -3,11 +3,14 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 // SPDX-FileCopyrightText: German Aerospace Center (DLR) <cosmoscout@dlr.de>
-// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: Copyright (C) 2023, Inria, GRAPHDECO research group
+// SPDX-License-Identifier: LicenseRef-InriaLicense
 
 #include "GaussianRenderer.hpp"
 
 #include "logger.hpp"
+
+#include "../externals/Eigen/Eigen"
 
 #include "../../../src/cs-core/Settings.hpp"
 #include "../../../src/cs-core/SolarSystem.hpp"
@@ -26,13 +29,26 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <utility>
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 namespace csp::gaussiansplatting {
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 namespace {
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+typedef Eigen::Matrix<float, 3, 1, Eigen::DontAlign> Vector3f;
+typedef Eigen::Matrix<int, 3, 1, Eigen::DontAlign>   Vector3i;
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 float sigmoid(const float m1) {
   return 1.0f / (1.0f + exp(-m1));
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #define CUDA_SAFE_CALL_ALWAYS(A)                                                                   \
   A;                                                                                               \
@@ -46,18 +62,22 @@ float sigmoid(const float m1) {
 #define CUDA_SAFE_CALL(A) A
 #endif
 
-// Load the Gaussians from the given file.
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// Load the Gaussians from the given file. This comes more or less unmodified from here:
+// https://gitlab.inria.fr/sibr/sibr_core/-/blob/fossa_compatibility/src/projects/gaussianviewer/renderer/GaussianView.cpp
 template <int D>
 int loadPly(const char* filename, std::vector<GaussianData::Pos>& pos, std::vector<GaussianData::SHs<3>>& shs,
     std::vector<float>& opacities, std::vector<GaussianData::Scale>& scales, std::vector<GaussianData::Rot>& rot,
-    GaussianRenderer::Vector3f& minn, GaussianRenderer::Vector3f& maxx) {
+    Vector3f& minn, Vector3f& maxx) {
   std::ifstream infile(filename, std::ios_base::binary);
 
-  if (!infile.good())
+  if (!infile.good()) {
     logger().error(
         "Unable to find model's PLY file, attempted: {}", filename);
+  }
 
-  // "Parse" header (it has to be a specific format anyway)
+  // "Parse" header (it has to be a specific format anyway).
   std::string buff;
   std::getline(infile, buff);
   std::getline(infile, buff);
@@ -68,18 +88,20 @@ int loadPly(const char* filename, std::vector<GaussianData::Pos>& pos, std::vect
   int               count;
   ss >> dummy >> dummy >> count;
 
-  // Output number of Gaussians contained
+  // Output number of Gaussians contained.
   logger().info("Loading {} Gaussian splats", count);
 
-  while (std::getline(infile, buff))
-    if (buff.compare("end_header") == 0)
+  while (std::getline(infile, buff)) {
+    if (buff.compare("end_header") == 0) {
       break;
+    }
+  }
 
-  // Read all Gaussians at once (AoS)
+  // Read all Gaussians at once (AoS).
   std::vector<GaussianData::RichPoint<D>> points(count);
   infile.read((char*)points.data(), count * sizeof(GaussianData::RichPoint<D>));
 
-  // Resize our SoA data
+  // Resize our SoA data.
   pos.resize(count);
   shs.resize(count);
   scales.resize(count);
@@ -90,7 +112,7 @@ int loadPly(const char* filename, std::vector<GaussianData::Pos>& pos, std::vect
   // them according to 3D Morton order. This means better cache
   // behavior for reading Gaussians that end up in the same tile
   // (close in 3D --> close in 2D).
-  minn = GaussianRenderer::Vector3f(FLT_MAX, FLT_MAX, FLT_MAX);
+  minn = Vector3f(FLT_MAX, FLT_MAX, FLT_MAX);
   maxx = -minn;
   for (int i = 0; i < count; i++) {
     maxx = maxx.cwiseMax(points[i].pos);
@@ -98,9 +120,9 @@ int loadPly(const char* filename, std::vector<GaussianData::Pos>& pos, std::vect
   }
   std::vector<std::pair<uint64_t, int>> mapp(count);
   for (int i = 0; i < count; i++) {
-    GaussianRenderer::Vector3f rel    = (points[i].pos - minn).array() / (maxx - minn).array();
-    GaussianRenderer::Vector3f scaled = ((float((1 << 21) - 1)) * rel);
-    GaussianRenderer::Vector3i xyz    = scaled.cast<int>();
+    Vector3f rel    = (points[i].pos - minn).array() / (maxx - minn).array();
+    Vector3f scaled = ((float((1 << 21) - 1)) * rel);
+    Vector3i xyz    = scaled.cast<int>();
 
     uint64_t code = 0;
     for (int i = 0; i < 21; i++) {
@@ -112,18 +134,20 @@ int loadPly(const char* filename, std::vector<GaussianData::Pos>& pos, std::vect
     mapp[i].first  = code;
     mapp[i].second = i;
   }
+
   auto sorter = [](const std::pair<uint64_t, int>& a, const std::pair<uint64_t, int>& b) {
     return a.first < b.first;
   };
+
   std::sort(mapp.begin(), mapp.end(), sorter);
 
-  // Move data from AoS to SoA
+  // Move data from AoS to SoA.
   int SH_N = (D + 1) * (D + 1);
   for (int k = 0; k < count; k++) {
     int i  = mapp[k].second;
     pos[k] = points[i].pos;
 
-    // Normalize quaternion
+    // Normalize quaternion.
     float length2 = 0;
     for (int j = 0; j < 4; j++)
       length2 += points[i].rot.rot[j] * points[i].rot.rot[j];
@@ -131,11 +155,11 @@ int loadPly(const char* filename, std::vector<GaussianData::Pos>& pos, std::vect
     for (int j = 0; j < 4; j++)
       rot[k].rot[j] = points[i].rot.rot[j] / length;
 
-    // Exponentiate scale
+    // Exponentiate scale.
     for (int j = 0; j < 3; j++)
       scales[k].scale[j] = exp(points[i].scale.scale[j]);
 
-    // Activate alpha
+    // Activate alpha.
     opacities[k] = sigmoid(points[i].opacity);
 
     shs[k].shs[0] = points[i].shs.shs[0];
@@ -147,12 +171,13 @@ int loadPly(const char* filename, std::vector<GaussianData::Pos>& pos, std::vect
       shs[k].shs[j * 3 + 2] = points[i].shs.shs[(j - 1) + 2 * SH_N + 1];
     }
   }
+
   return count;
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
-
-
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -210,18 +235,14 @@ void GaussianRenderer::configure(
     std::vector<GaussianData::SHs<3>> shs;
 
     const int shDegree = 3;
-    mCount = loadPly<shDegree>(mRadianceField.mPLY.c_str(), pos, shs, opacity, scale, rot, mSceneMin, mSceneMax);
+    Vector3f sceneMin{};
+    Vector3f sceneMax{};
+    mCount = loadPly<shDegree>(mRadianceField.mPLY.c_str(), pos, shs, opacity, scale, rot, sceneMin, sceneMax);
     mData = new GaussianData(pos, rot, scale, opacity, shs);
 
     mSurfaceRenderer = std::make_shared<SurfaceRenderer>();
     mSplatRenderer = std::make_shared<SplatRenderer>();
   }
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-Plugin::Settings::RadianceField const& GaussianRenderer::getRadianceField() {
-  return mRadianceField;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -279,11 +300,6 @@ bool GaussianRenderer::Do() {
 
 bool GaussianRenderer::GetBoundingBox(VistaBoundingBox& /*bb*/) {
   return false;
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-void GaussianRenderer::loadPLY() {
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

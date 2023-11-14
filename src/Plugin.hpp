@@ -20,13 +20,24 @@ namespace csp::gaussiansplatting {
 
 class GaussianRenderer;
 
+/// This plugin implements 3D gaussian splatting for real-time radiance field rendering. For this,
+/// the plugin uses code from MPI and Inria which is available at
+/// https://github.com/graphdeco-inria/gaussian-splatting
 class Plugin : public cs::core::PluginBase {
  public:
   struct Settings {
     struct RadianceField {
+
+      /// The file path to the ply radiance field data.
       std::string mPLY;
+
+      /// The object name to which the renderer should be attached (e.g. "Earth").
       std::string mObject;
+
+      /// The position where to place the renderer on the above body.
       glm::dvec2 mLngLat;
+
+      /// Optional transformation relative to the location above.
       cs::utils::DefaultProperty<glm::dquat> mRotation{glm::dquat(1.0, 0.0, 0.0, 0.0)};
       cs::utils::DefaultProperty<double> mScale{1.0};
       cs::utils::DefaultProperty<double> mAltitude{0.0};
@@ -42,13 +53,12 @@ class Plugin : public cs::core::PluginBase {
 
   void init() override;
   void deInit() override;
-  void update() override;
 
  private:
   void onLoad();
   void onSave();
 
-  std::shared_ptr<Settings>                      mPluginSettings = std::make_shared<Settings>();
+  std::shared_ptr<Settings> mPluginSettings = std::make_shared<Settings>();
   std::vector<std::shared_ptr<GaussianRenderer>> mRenderers;
 
   int mOnLoadConnection = -1;
