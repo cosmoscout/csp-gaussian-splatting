@@ -11,6 +11,7 @@
 
 #include "../../../../src/cs-utils/filesystem.hpp"
 
+#include <VistaKernel/DisplayManager/VistaDisplayManager.h>
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_access.hpp>
 #include <rasterizer.h>
@@ -74,12 +75,14 @@ SplatRenderer::~SplatRenderer() {
   cudaFree(mCamPosCuda);
   cudaFree(mBackgroundCuda);
 
-  if (!mInteropFailed) {
-    cudaGraphicsUnregisterResource(mImageBufferCuda);
-  } else {
-    cudaFree(mFallbackBufferCuda);
+  for (auto const& viewportData: mViewportData) {
+    if (!viewportData.second.mInteropFailed) {
+      cudaGraphicsUnregisterResource(viewportData.second.mImageBufferCuda);
+    } else {
+      cudaFree(viewportData.second.mFallbackBufferCuda);
+    }
+    glDeleteBuffers(1, &viewportData.second.mImageBuffer);
   }
-  glDeleteBuffers(1, &mImageBuffer);
 
   if (mGeomPtr)
     cudaFree(mGeomPtr);
@@ -89,16 +92,14 @@ SplatRenderer::~SplatRenderer() {
     cudaFree(mImgPtr);
 }
 
-void SplatRenderer::draw(float scale, int count,
+void SplatRenderer::draw(float scale, int count, bool doFade,
      const GaussianData& mesh,
      glm::vec3 const& camPos, glm::mat4 matMV, glm::mat4 matP) {
-    
-     std::array<GLint, 4> current_viewport{};
-  glGetIntegerv(GL_VIEWPORT, current_viewport.data());
-  createBuffers(current_viewport[2], current_viewport[3]);  
+
+  auto& viewportData = getCurrentViewportData();  
 
   float tan_fovy = 1.f / matP[1][1];
-  float tan_fovx = tan_fovy * (1.f * mWidth / mHeight);
+  float tan_fovx = tan_fovy * (1.f * viewportData.mWidth / viewportData.mHeight);
 
   // Convert view and projection to target coordinate system
   matP = matP * matMV;
@@ -116,37 +117,29 @@ void SplatRenderer::draw(float scale, int count,
   
 
   float* image_cuda = nullptr;
-  if (!mInteropFailed) {
+  if (!viewportData.mInteropFailed) {
     // Map OpenGL buffer resource for use with CUDA
     size_t bytes;
-    CUDA_SAFE_CALL(cudaGraphicsMapResources(1, &mImageBufferCuda));
+    CUDA_SAFE_CALL(cudaGraphicsMapResources(1, &viewportData.mImageBufferCuda));
     CUDA_SAFE_CALL(
-        cudaGraphicsResourceGetMappedPointer((void**)&image_cuda, &bytes, mImageBufferCuda));
+        cudaGraphicsResourceGetMappedPointer((void**)&image_cuda, &bytes, viewportData.mImageBufferCuda));
   } else {
-    image_cuda = mFallbackBufferCuda;
+    image_cuda = viewportData.mFallbackBufferCuda;
   }
 
-  // Rasterize
-  bool _fastCulling = true;
-  int*   rects  = _fastCulling ? mesh.mRectCuda : nullptr;
-
-  // Can be used for cropping
-  float* boxmin = nullptr;
-  float* boxmax = nullptr;
-  
   CudaRasterizer::Rasterizer::forward(mGeomBufferFunc, mBinningBufferFunc, mImgBufferFunc, count,
-      3, 16, mBackgroundCuda, mWidth, mHeight, mesh.mPosCuda, mesh.mShsCuda,
+      3, 16, mBackgroundCuda, viewportData.mWidth, viewportData.mHeight, mesh.mPosCuda, mesh.mShsCuda,
       nullptr, mesh.mOpacityCuda, mesh.mScaleCuda, scale, mesh.mRotCuda, nullptr, mViewCuda,
-      mProjCuda, mCamPosCuda, tan_fovx, tan_fovy, false, image_cuda);//, nullptr, rects, boxmin, boxmax);
+      mProjCuda, mCamPosCuda, tan_fovx, tan_fovy, false, doFade, image_cuda);
 
 
-  if (!mInteropFailed) {
+  if (!viewportData.mInteropFailed) {
     // Unmap OpenGL resource for use with OpenGL
-    CUDA_SAFE_CALL(cudaGraphicsUnmapResources(1, &mImageBufferCuda));
+    CUDA_SAFE_CALL(cudaGraphicsUnmapResources(1, &viewportData.mImageBufferCuda));
   } else {
-    CUDA_SAFE_CALL(cudaMemcpy(mFallbackBytes.data(), mFallbackBufferCuda, mFallbackBytes.size(),
+    CUDA_SAFE_CALL(cudaMemcpy(viewportData.mFallbackBytes.data(), viewportData.mFallbackBufferCuda, viewportData.mFallbackBytes.size(),
         cudaMemcpyDeviceToHost));
-    glNamedBufferSubData(mImageBuffer, 0, mFallbackBytes.size(), mFallbackBytes.data());
+    glNamedBufferSubData(viewportData.mImageBuffer, 0, viewportData.mFallbackBytes.size(), viewportData.mFallbackBytes.data());
   }
   
 
@@ -158,10 +151,10 @@ void SplatRenderer::draw(float scale, int count,
   glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
   glDepthMask(GL_FALSE);
 
-  glUniform1i(mUniforms.mWidth, mWidth);
-  glUniform1i(mUniforms.mHeight, mHeight);
+  glUniform1i(mUniforms.mWidth, viewportData.mWidth);
+  glUniform1i(mUniforms.mHeight, viewportData.mHeight);
 
-  glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, mImageBuffer);
+  glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, viewportData.mImageBuffer);
   glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
   glEnable(GL_DEPTH_TEST);
@@ -176,46 +169,69 @@ void SplatRenderer::draw(float scale, int count,
  
 }
 
-void SplatRenderer::createBuffers(uint32_t width, uint32_t height) {
-  if (mWidth != width || mHeight != height) {
+SplatRenderer::ViewportData& SplatRenderer::getCurrentViewportData() {
+
+  std::array<GLint, 4> viewportExtent{};
+  glGetIntegerv(GL_VIEWPORT, viewportExtent.data());
+  GLint width = viewportExtent.at(2);
+  GLint height = viewportExtent.at(3);
+
+  auto vistaViewport = GetVistaSystem()->GetDisplayManager()->GetCurrentRenderInfo()->m_pViewport;
+  auto viewportData  = mViewportData.find(vistaViewport);
+  bool needsRecreation = false;
+
+  if (viewportData == mViewportData.end()) {
+    needsRecreation = true;
+
+  } else if (viewportData->second.mWidth != width || viewportData->second.mHeight != height) {
 
     // Clean any previous buffer
-    if (mImageBufferCuda && !mInteropFailed) {
-      cudaGraphicsUnregisterResource(mImageBufferCuda);
-    } else if (mFallbackBufferCuda) {
-      cudaFree(mFallbackBufferCuda);
+    if (!viewportData->second.mInteropFailed) {
+      cudaGraphicsUnregisterResource(viewportData->second.mImageBufferCuda);
+    } else {
+      cudaFree(viewportData->second.mFallbackBufferCuda);
     }
+    glDeleteBuffers(1, &viewportData->second.mImageBuffer);
 
-    if (mImageBuffer) {
-      glDeleteBuffers(1, &mImageBuffer);
-    }
+    needsRecreation = true;
+  }
+
+
+  if (needsRecreation) {
+
+    std::cout << "#####################################" << std::endl;
+
+    ViewportData data;
 
     // Create GL buffer ready for CUDA/GL interop
     bool useInterop = true;
 
-    glCreateBuffers(1, &mImageBuffer);
+    glCreateBuffers(1, &data.mImageBuffer);
     glNamedBufferStorage(
-        mImageBuffer, width * height * 4 * sizeof(float), nullptr, GL_DYNAMIC_STORAGE_BIT);
+        data.mImageBuffer, width * height * 4 * sizeof(float), nullptr, GL_DYNAMIC_STORAGE_BIT);
 
     if (useInterop) {
       if (cudaPeekAtLastError() != cudaSuccess) {
         logger().error("A CUDA error occurred in setup: {}", cudaGetErrorString(cudaGetLastError()));
       }
       cudaGraphicsGLRegisterBuffer(
-          &mImageBufferCuda, mImageBuffer, cudaGraphicsRegisterFlagsWriteDiscard);
+          &data.mImageBufferCuda, data.mImageBuffer, cudaGraphicsRegisterFlagsWriteDiscard);
       useInterop &= (cudaGetLastError() == cudaSuccess);
     }
 
     if (!useInterop) {
-      mFallbackBytes.resize(width * height * 4 * sizeof(float));
-      cudaMalloc(&mFallbackBufferCuda, mFallbackBytes.size());
-      mInteropFailed = true;
+      data.mFallbackBytes.resize(width * height * 4 * sizeof(float));
+      cudaMalloc(&data.mFallbackBufferCuda, data.mFallbackBytes.size());
+      data.mInteropFailed = true;
     }
 
-    mWidth = width;
-    mHeight = height;
+    data.mWidth = width;
+    data.mHeight = height;
+
+    mViewportData[vistaViewport] = data;
   }
 
+  return mViewportData[vistaViewport];
 }
 
 }

@@ -7,12 +7,14 @@
 
 #include "Plugin.hpp"
 
+#include "GaussianRenderer.hpp"
+#include "logger.hpp"
+
 #include "../../../src/cs-core/Settings.hpp"
 #include "../../../src/cs-core/SolarSystem.hpp"
 #include "../../../src/cs-utils/logger.hpp"
+#include "../../../src/cs-core/GuiManager.hpp"
 #include "../../../src/cs-utils/utils.hpp"
-#include "GaussianRenderer.hpp"
-#include "logger.hpp"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -55,11 +57,19 @@ void to_json(nlohmann::json& j, Plugin::Settings::RadianceField const& o) {
 void from_json(nlohmann::json const& j, Plugin::Settings& o) {
   cs::core::Settings::deserialize(j, "radianceFields", o.mRadianceFields);
   cs::core::Settings::deserialize(j, "cudaDevice", o.mCudaDevice);
+  cs::core::Settings::deserialize(j, "drawSplats", o.mDrawSplats);
+  cs::core::Settings::deserialize(j, "drawEllipses", o.mDrawEllipses);
+  cs::core::Settings::deserialize(j, "distanceFading", o.mDistanceFading);
+  cs::core::Settings::deserialize(j, "splatScale", o.mSplatScale);
 }
 
 void to_json(nlohmann::json& j, Plugin::Settings const& o) {
   cs::core::Settings::serialize(j, "radianceFields", o.mRadianceFields);
   cs::core::Settings::serialize(j, "cudaDevice", o.mCudaDevice);
+  cs::core::Settings::serialize(j, "drawSplats", o.mDrawSplats);
+  cs::core::Settings::serialize(j, "drawEllipses", o.mDrawEllipses);
+  cs::core::Settings::serialize(j, "distanceFading", o.mDistanceFading);
+  cs::core::Settings::serialize(j, "splatScale", o.mSplatScale);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -70,6 +80,38 @@ void Plugin::init() {
 
   mOnLoadConnection = mAllSettings->onLoad().connect([this]() { onLoad(); });
   mOnSaveConnection = mAllSettings->onSave().connect([this]() { onSave(); });
+
+  mGuiManager->addSettingsSectionToSideBarFromHTML("Gaussian Splatting", "grain",
+      "../share/resources/gui/csp-gaussian-splatting.html");
+
+  mGuiManager->executeJavascriptFile("../share/resources/gui/js/csp-gaussian-splatting.js");
+
+  mGuiManager->getGui()->registerCallback("gaussiansplatting.setEnableSplats",
+      "Enables or disables the rendering of the splats.",
+      std::function([this](bool value) { mPluginSettings->mDrawSplats = value; }));
+  mPluginSettings->mDrawSplats.connectAndTouch([this](bool enable) {
+    mGuiManager->setCheckboxValue("gaussiansplatting.setEnableSplats", enable);
+  });
+
+  mGuiManager->getGui()->registerCallback("gaussiansplatting.setEnableEllipses",
+      "Enables or disables the rendering of debug ellipses.",
+      std::function([this](bool value) { mPluginSettings->mDrawEllipses = value; }));
+  mPluginSettings->mDrawEllipses.connectAndTouch([this](bool enable) {
+    mGuiManager->setCheckboxValue("gaussiansplatting.setEnableEllipses", enable);
+  });
+
+  mGuiManager->getGui()->registerCallback("gaussiansplatting.setEnableFading",
+      "Enables or disables the distance fading of the splats.",
+      std::function([this](bool value) { mPluginSettings->mDistanceFading = value; }));
+  mPluginSettings->mDistanceFading.connectAndTouch([this](bool enable) {
+    mGuiManager->setCheckboxValue("gaussiansplatting.setEnableFading", enable);
+  });
+
+  mGuiManager->getGui()->registerCallback("gaussiansplatting.setScale",
+      "Sets the apparent size of splats on screen.",
+      std::function([this](double value) { mPluginSettings->mSplatScale = static_cast<float>(value); }));
+  mPluginSettings->mSplatScale.connectAndTouch(
+      [this](float value) { mGuiManager->setSliderValue("gaussiansplatting.setScale", value); });
 
   // Load settings.
   onLoad();
@@ -85,6 +127,15 @@ void Plugin::deInit() {
   // Save settings as this plugin may get reloaded.
   onSave();
 
+  mGuiManager->removeSettingsSection("Gaussian Splatting");
+
+  mGuiManager->getGui()->callJavascript("CosmoScout.removeApi", "GaussianSplatting");
+
+  mGuiManager->getGui()->unregisterCallback("gaussiansplatting.setEnableSplats");
+  mGuiManager->getGui()->unregisterCallback("gaussiansplatting.setEnableEllipses");
+  mGuiManager->getGui()->unregisterCallback("gaussiansplatting.setEnableFading");
+  mGuiManager->getGui()->unregisterCallback("gaussiansplatting.setScale");
+
   mAllSettings->onLoad().disconnect(mOnLoadConnection);
   mAllSettings->onSave().disconnect(mOnSaveConnection);
 
@@ -95,14 +146,14 @@ void Plugin::deInit() {
 
 void Plugin::onLoad() {
   // Read settings from JSON.
-  from_json(mAllSettings->mPlugins.at("csp-gaussian-splatting"), mPluginSettings);
+  from_json(mAllSettings->mPlugins.at("csp-gaussian-splatting"), *mPluginSettings);
 
   mRenderers.clear();
 
   // Then add new renderers.
-  for (auto const& settings : mPluginSettings.mRadianceFields) {
+  for (auto const& settings : mPluginSettings->mRadianceFields) {
     auto renderer = std::make_shared<GaussianRenderer>(mAllSettings, mSolarSystem, "Earth");
-    renderer->configure(settings, mPluginSettings.mCudaDevice.get());
+    renderer->configure(settings, mPluginSettings);
     mRenderers.push_back(renderer);
   }
 }
@@ -110,7 +161,7 @@ void Plugin::onLoad() {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void Plugin::onSave() {
-  mAllSettings->mPlugins["csp-gaussian-splatting"] = mPluginSettings;
+  mAllSettings->mPlugins["csp-gaussian-splatting"] = *mPluginSettings;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

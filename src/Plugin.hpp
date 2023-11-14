@@ -33,6 +33,10 @@ class Plugin : public cs::core::PluginBase {
     };
 
     std::vector<RadianceField>          mRadianceFields;
+    cs::utils::DefaultProperty<bool>    mDrawSplats{false};
+    cs::utils::DefaultProperty<bool>    mDrawEllipses{false};
+    cs::utils::DefaultProperty<bool>    mDistanceFading{true};
+    cs::utils::DefaultProperty<float>   mSplatScale{1.f};
     cs::utils::DefaultProperty<int32_t> mCudaDevice{0};
   };
 
@@ -44,7 +48,7 @@ class Plugin : public cs::core::PluginBase {
   void onLoad();
   void onSave();
 
-  Settings                                       mPluginSettings;
+  std::shared_ptr<Settings>                      mPluginSettings = std::make_shared<Settings>();
   std::vector<std::shared_ptr<GaussianRenderer>> mRenderers;
 
   int mOnLoadConnection = -1;

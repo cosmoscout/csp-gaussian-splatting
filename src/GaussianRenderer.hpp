@@ -49,7 +49,7 @@ class GaussianRenderer : public IVistaOpenGLDraw {
   ~GaussianRenderer() override;
 
   /// Configures the internal renderer according to the given values.
-  void configure(Plugin::Settings::RadianceField const& settings, int32_t cudaDevice);
+  void configure(Plugin::Settings::RadianceField const& settings, std::shared_ptr<Plugin::Settings> pluginSettings);
   Plugin::Settings::RadianceField const& getRadianceField();
 
   bool Do() override;
@@ -65,6 +65,7 @@ class GaussianRenderer : public IVistaOpenGLDraw {
 
   std::unique_ptr<VistaOpenGLNode> mGLNode;
 
+  std::shared_ptr<Plugin::Settings> mPluginSettings;
   Plugin::Settings::RadianceField mRadianceField;
 
   int32_t mCudaDevice = 0;

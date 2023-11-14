@@ -19,6 +19,8 @@
 #include <functional>
 #include <memory>
 
+class VistaViewport;
+
 namespace CudaRasterizer {
 class Rasterizer;
 }
@@ -33,27 +35,31 @@ class SplatRenderer {
   SplatRenderer();
   virtual ~SplatRenderer();
 
-  void draw(float scale, int count,
+  void draw(float scale, int count, bool doFade,
      const GaussianData& mesh,
       glm::vec3 const& camPos,  glm::mat4  matMV,  glm::mat4  matP);
 
  private:
-  void createBuffers(uint32_t width, uint32_t height);
+ struct ViewportData {
+    uint32_t mWidth = 0;
+    uint32_t mHeight = 0;
+
+    GLuint                 mImageBuffer = 0;
+    cudaGraphicsResource_t mImageBufferCuda;
+
+    bool              mInteropFailed = false;
+    std::vector<char> mFallbackBytes;
+    float*            mFallbackBufferCuda = nullptr;
+  };
+
+  std::unordered_map<VistaViewport*, ViewportData> mViewportData;
+
+  ViewportData& getCurrentViewportData();
 
   float* mViewCuda = nullptr;
   float* mProjCuda = nullptr;
   float* mCamPosCuda = nullptr;
   float* mBackgroundCuda = nullptr;
-
-  uint32_t mWidth = 0;
-  uint32_t mHeight = 0;
-  
-  GLuint                 mImageBuffer;
-  cudaGraphicsResource_t mImageBufferCuda;
-
-  bool              mInteropFailed = false;
-  std::vector<char> mFallbackBytes;
-  float*            mFallbackBufferCuda = nullptr;
 
   size_t                         mAllocdGeom = 0, mAllocdBinning = 0, mAllocdImg = 0;
   void *                         mGeomPtr = nullptr, *mBinningPtr = nullptr, *mImgPtr = nullptr;
@@ -64,7 +70,7 @@ class SplatRenderer {
     uint32_t mHeight = 0;
   } mUniforms;
 
-  VistaGLSLShader                  mCopyShader;
+  VistaGLSLShader mCopyShader;
 };
 
 } // namespace csp::gaussiansplatting

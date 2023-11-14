@@ -179,13 +179,14 @@ GaussianRenderer::~GaussianRenderer() {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void GaussianRenderer::configure(
-    Plugin::Settings::RadianceField const& settings, int32_t cudaDevice) {
+    Plugin::Settings::RadianceField const& settings, std::shared_ptr<Plugin::Settings> pluginSettings) {
 
-  if (mRadianceField.mPLY != settings.mPLY || mCudaDevice != cudaDevice ) {
+  if (mRadianceField.mPLY != settings.mPLY || mCudaDevice != pluginSettings->mCudaDevice.get()) {
     logger().info("Loading PLY {}", settings.mPLY);
 
     mRadianceField = settings;
-    mCudaDevice = cudaDevice;
+    mCudaDevice = pluginSettings->mCudaDevice.get();
+    mPluginSettings = std::move(pluginSettings);
 
     int num_devices;
     CUDA_SAFE_CALL_ALWAYS(cudaGetDeviceCount(&num_devices));
@@ -233,7 +234,6 @@ bool GaussianRenderer::Do() {
 
   cs::utils::FrameStats::ScopedTimer timer("Gaussian Renderer");
 
-
   // Get modelview and projection matrices.
   std::array<GLfloat, 16> glMatV{};
   std::array<GLfloat, 16> glMatP{};
@@ -264,8 +264,13 @@ bool GaussianRenderer::Do() {
   glm::vec4 viewPos         = glm::inverse(matV * matM) * glm::vec4(0.0F, 0.0F, 0.0F, 1.0F);
   viewPos                   = viewPos / viewPos.w;
 
-  //mSurfaceRenderer->draw(mCount, *mData, 0.2f, viewPos, matP * matV * matM);
-  mSplatRenderer->draw(1.f, mCount, *mData, viewPos, matV * matM, matP);
+  if (mPluginSettings->mDrawEllipses.get()) {
+    mSurfaceRenderer->draw(mCount, *mData, 0.2f, viewPos, matP * matV * matM);
+  }
+
+  if (mPluginSettings->mDrawSplats.get()) {
+    mSplatRenderer->draw(mPluginSettings->mSplatScale.get(), mCount, mPluginSettings->mDistanceFading.get(), *mData, viewPos, matV * matM, matP);
+  }
 
   return true;
 }
