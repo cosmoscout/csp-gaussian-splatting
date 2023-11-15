@@ -205,14 +205,17 @@ GaussianRenderer::~GaussianRenderer() {
 
 void GaussianRenderer::configure(
     Plugin::Settings::RadianceField const& settings, std::shared_ptr<Plugin::Settings> pluginSettings) {
-
+  
+  // If the ply file or the CUDA device changed, we reload everything.
   if (mRadianceField.mPLY != settings.mPLY || mCudaDevice != pluginSettings->mCudaDevice.get()) {
     logger().info("Loading PLY {}", settings.mPLY);
 
+    // Store the settings.
     mRadianceField = settings;
     mCudaDevice = pluginSettings->mCudaDevice.get();
     mPluginSettings = std::move(pluginSettings);
 
+    // Select the CUDA device.
     int num_devices;
     CUDA_SAFE_CALL_ALWAYS(cudaGetDeviceCount(&num_devices));
     if (mCudaDevice >= num_devices) {
@@ -228,6 +231,7 @@ void GaussianRenderer::configure(
       logger().error("Sorry, need at least compute capability 7.0+! (got {})", prop.major);
     }
 
+    // Load the radiance field from the ply file.
     std::vector<GaussianData::Pos>    pos;
     std::vector<GaussianData::Rot>    rot;
     std::vector<GaussianData::Scale>  scale;
@@ -238,10 +242,7 @@ void GaussianRenderer::configure(
     Vector3f sceneMin{};
     Vector3f sceneMax{};
     mCount = loadPly<shDegree>(mRadianceField.mPLY.c_str(), pos, shs, opacity, scale, rot, sceneMin, sceneMax);
-    mData = new GaussianData(pos, rot, scale, opacity, shs);
-
-    mSurfaceRenderer = std::make_shared<SurfaceRenderer>();
-    mSplatRenderer = std::make_shared<SplatRenderer>();
+    mData = std::make_unique<GaussianData>(pos, rot, scale, opacity, shs);
   }
 }
 
@@ -253,16 +254,10 @@ bool GaussianRenderer::Do() {
     return true;
   }
 
-  cs::utils::FrameStats::ScopedTimer timer("Gaussian Renderer");
-
-  // Get modelview and projection matrices.
-  std::array<GLfloat, 16> glMatV{};
-  std::array<GLfloat, 16> glMatP{};
-  glGetFloatv(GL_MODELVIEW_MATRIX, glMatV.data());
-  glGetFloatv(GL_PROJECTION_MATRIX, glMatP.data());
-
+  cs::utils::FrameStats::ScopedTimer timer("Gaussian Renderer for " + mRadianceField.mPLY);
+  
+  // Compute ENO (east-north-up) rotation for the given location on the planet.
   glm::dvec2 lngLat(cs::utils::convert::toRadians(mRadianceField.mLngLat));
-  auto pos = cs::utils::convert::toCartesian(lngLat, object->getRadii(), mRadianceField.mAltitude.get());
   auto normal = cs::utils::convert::lngLatToNormal(lngLat);
   auto north = glm::dvec3(0.0, 1.0, 0.0);
 
@@ -274,23 +269,35 @@ bool GaussianRenderer::Do() {
   y = glm::normalize(y);
   z = glm::normalize(z);
 
+  // Apply object-local roation.
   auto rot = glm::toQuat(glm::dmat3(x, y, z)) * mRadianceField.mRotation.get();
 
+  // Get the cartesian position from the given geographic coordinates.
+  auto pos = cs::utils::convert::toCartesian(lngLat, object->getRadii(), mRadianceField.mAltitude.get());
+
+  // Get the final observer-relative transformation of the radiance field.
   glm::mat4 matM = object->getObserverRelativeTransform(pos, rot, mRadianceField.mScale.get());
+
+  // Get view and projection matrices.
+  std::array<GLfloat, 16> glMatV{};
+  std::array<GLfloat, 16> glMatP{};
+  glGetFloatv(GL_MODELVIEW_MATRIX, glMatV.data());
+  glGetFloatv(GL_PROJECTION_MATRIX, glMatP.data());
+
   glm::mat4 matV = glm::make_mat4x4(glMatV.data());
   glm::mat4 matP = glm::make_mat4x4(glMatP.data());
 
- float sceneScale = static_cast<float>(1.0 / mSolarSystem->getObserver().getScale());
+  // Compute the object-relative viewer position.
+  glm::vec4 viewPos = glm::inverse(matV * matM) * glm::vec4(0.0F, 0.0F, 0.0F, 1.0F);
+  viewPos           = viewPos / viewPos.w;
 
-  glm::vec4 viewPos         = glm::inverse(matV * matM) * glm::vec4(0.0F, 0.0F, 0.0F, 1.0F);
-  viewPos                   = viewPos / viewPos.w;
-
+  // Finally draw the debug ellipses and/or the splats.
   if (mPluginSettings->mDrawEllipses.get()) {
-    mSurfaceRenderer->draw(mCount, *mData, 0.2f, viewPos, matP * matV * matM);
+    mSurfaceRenderer.draw(mCount, *mData, 0.2f, viewPos, matP * matV * matM);
   }
 
   if (mPluginSettings->mDrawSplats.get()) {
-    mSplatRenderer->draw(mPluginSettings->mSplatScale.get(), mCount, mPluginSettings->mDistanceFading.get(), *mData, viewPos, matV * matM, matP);
+    mSplatRenderer.draw(mPluginSettings->mSplatScale.get(), mCount, mPluginSettings->mDistanceFading.get(), *mData, viewPos, matV * matM, matP);
   }
 
   return true;

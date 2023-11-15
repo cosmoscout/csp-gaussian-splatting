@@ -45,7 +45,7 @@ SplatRenderer::SplatRenderer() {
   CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void**)&mCamPosCuda, 3 * sizeof(float)));
   CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void**)&mBackgroundCuda, 3 * sizeof(float)));
   
-  // The background color is actually not used.
+  // The background color is actually not used in our fork of diff-gaussian-rasterization.
   float bg[3] = {0.f, 0.f, 0.f};
   CUDA_SAFE_CALL_ALWAYS(cudaMemcpy(mBackgroundCuda, bg, 3 * sizeof(float), cudaMemcpyHostToDevice));
 
@@ -91,12 +91,17 @@ SplatRenderer::~SplatRenderer() {
     glDeleteBuffers(1, &viewportData.second.mImageBuffer);
   }
 
-  if (mGeomPtr)
+  if (mGeomPtr) {
     cudaFree(mGeomPtr);
-  if (mBinningPtr)
+  }
+
+  if (mBinningPtr) {
     cudaFree(mBinningPtr);
-  if (mImgPtr)
+  }
+
+  if (mImgPtr) {
     cudaFree(mImgPtr);
+  }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -107,27 +112,27 @@ void SplatRenderer::draw(float scale, int count, bool doFade,
 
   auto& viewportData = getCurrentViewportData();  
 
-  float tan_fovy = 1.f / matP[1][1];
-  float tan_fovx = tan_fovy * (1.f * viewportData.mWidth / viewportData.mHeight);
+  float tanFoVY = 1.f / matP[1][1];
+  float tanFoVX = tanFoVY * (1.f * viewportData.mWidth / viewportData.mHeight);
 
-  // Convert view and projection to target coordinate system
+  // Convert view and projection to target coordinate system. This is done in the same manner as in the original implementation:
+  // https://gitlab.inria.fr/sibr/sibr_core/-/blob/fossa_compatibility/src/projects/gaussianviewer/renderer/GaussianView.cpp#L469
   matP = matP * matMV;
   matMV = glm::row(matMV, 1, -1.f * glm::row(matMV, 1));
   matMV = glm::row(matMV, 2, -1.f * glm::row(matMV, 2));
   matP = glm::row(matP, 1, -1.f * glm::row(matP, 1));
 
-  // Copy frame-dependent data to GPU
+  // Copy frame-dependent data to GPU.
   CUDA_SAFE_CALL(
       cudaMemcpy(mViewCuda, glm::value_ptr(matMV), sizeof(glm::mat4), cudaMemcpyHostToDevice));
   CUDA_SAFE_CALL(
       cudaMemcpy(mProjCuda, glm::value_ptr(matP), sizeof(glm::mat4), cudaMemcpyHostToDevice));
   CUDA_SAFE_CALL(
       cudaMemcpy(mCamPosCuda, glm::value_ptr(camPos), sizeof(float) * 3, cudaMemcpyHostToDevice));
-  
 
+  // Map the OpenGL buffer for use with CUDA or use the fallback buffer if interop failed.
   float* image_cuda = nullptr;
   if (!viewportData.mInteropFailed) {
-    // Map OpenGL buffer resource for use with CUDA
     size_t bytes;
     CUDA_SAFE_CALL(cudaGraphicsMapResources(1, &viewportData.mImageBufferCuda));
     CUDA_SAFE_CALL(
@@ -136,14 +141,14 @@ void SplatRenderer::draw(float scale, int count, bool doFade,
     image_cuda = viewportData.mFallbackBufferCuda;
   }
 
+  // Draw the radiance field!
   CudaRasterizer::Rasterizer::forward(mGeomBufferFunc, mBinningBufferFunc, mImgBufferFunc, count,
       3, 16, mBackgroundCuda, viewportData.mWidth, viewportData.mHeight, mesh.mPosCuda, mesh.mShsCuda,
       nullptr, mesh.mOpacityCuda, mesh.mScaleCuda, scale, mesh.mRotCuda, nullptr, mViewCuda,
-      mProjCuda, mCamPosCuda, tan_fovx, tan_fovy, false, doFade, image_cuda);
+      mProjCuda, mCamPosCuda, tanFoVX, tanFoVY, false, doFade, image_cuda);
 
-
+  // Unmap the OpenGL resource or manually copy the data.
   if (!viewportData.mInteropFailed) {
-    // Unmap OpenGL resource for use with OpenGL
     CUDA_SAFE_CALL(cudaGraphicsUnmapResources(1, &viewportData.mImageBufferCuda));
   } else {
     CUDA_SAFE_CALL(cudaMemcpy(viewportData.mFallbackBytes.data(), viewportData.mFallbackBufferCuda, viewportData.mFallbackBytes.size(),
@@ -152,7 +157,7 @@ void SplatRenderer::draw(float scale, int count, bool doFade,
   }
   
 
-  // Copy image contents to framebuffer
+  // Copy image contents to frame buffer. For this, we disable the depth test, depth writing, and perform pre-multiplied alpha blending.
   mCopyShader.Bind();
 
   glDisable(GL_DEPTH_TEST);
@@ -191,12 +196,13 @@ SplatRenderer::ViewportData& SplatRenderer::getCurrentViewportData() {
   auto viewportData  = mViewportData.find(vistaViewport);
   bool needsRecreation = false;
 
+  // If we haven't seen this viewport before or it changed size, we need to create new resources for it.
   if (viewportData == mViewportData.end()) {
     needsRecreation = true;
 
   } else if (viewportData->second.mWidth != width || viewportData->second.mHeight != height) {
 
-    // Clean any previous buffer
+    // If the viewport changed size, we have to free any previously created resources first.
     if (!viewportData->second.mInteropFailed) {
       cudaGraphicsUnregisterResource(viewportData->second.mImageBufferCuda);
     } else {
@@ -208,11 +214,11 @@ SplatRenderer::ViewportData& SplatRenderer::getCurrentViewportData() {
   }
 
 
+    // Create OpenGL buffer ready for CUDA/GL interop.
   if (needsRecreation) {
 
     ViewportData data;
 
-    // Create GL buffer ready for CUDA/GL interop
     bool useInterop = true;
 
     glCreateBuffers(1, &data.mImageBuffer);
@@ -237,6 +243,7 @@ SplatRenderer::ViewportData& SplatRenderer::getCurrentViewportData() {
     data.mWidth = width;
     data.mHeight = height;
 
+    // Store the new viewport data so that we can reuse it next time.
     mViewportData[vistaViewport] = data;
   }
 

@@ -45,8 +45,6 @@ struct GaussianData {
     Rot    rot;
   };
 
-  GaussianData() = default;
-
   /// Allocates all the GL and Cuda resources.
   GaussianData( std::vector<Pos> const& pos, std::vector<Rot> const& rot, std::vector<Scale> const& scale,
       std::vector<float> const& alpha, std::vector<SHs<3>> const& color);

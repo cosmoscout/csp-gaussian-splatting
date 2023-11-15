@@ -65,10 +65,9 @@ class GaussianRenderer : public IVistaOpenGLDraw {
   int32_t mCudaDevice = 0;
   int32_t mCount = 0;
 
-  GaussianData* mData;
-  
-  std::shared_ptr<SurfaceRenderer> mSurfaceRenderer;
-  std::shared_ptr<SplatRenderer>   mSplatRenderer;
+  std::unique_ptr<GaussianData>    mData;
+  SurfaceRenderer mSurfaceRenderer;
+  SplatRenderer   mSplatRenderer;
 };
 } // namespace csp::gaussiansplatting
 

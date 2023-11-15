@@ -18,14 +18,11 @@
 
 class VistaViewport;
 
-namespace CudaRasterizer {
-class Rasterizer;
-}
-
 namespace csp::gaussiansplatting {
 
-class BufferCopyRenderer;
-
+/// This renderer uses the diff-gaussian-rasterization submodule to render the radiance
+/// field. The individual gaussian splats are first ray-casted with CUDA and then
+/// resulting image is then drawn on top of the OpenGL frame buffer.
 class SplatRenderer {
 
  public:
@@ -37,7 +34,9 @@ class SplatRenderer {
       glm::vec3 const& camPos,  glm::mat4  matMV,  glm::mat4  matP);
 
  private:
- struct ViewportData {
+
+   /// This stores the CUDA and OpenGL resources required for rendering. As the draw method above can be called for different viewports with different resolutions, we have to store such a struct for each viewport.
+   struct ViewportData {
     uint32_t mWidth = 0;
     uint32_t mHeight = 0;
 
@@ -49,10 +48,12 @@ class SplatRenderer {
     float*            mFallbackBufferCuda = nullptr;
   };
 
-  std::unordered_map<VistaViewport*, ViewportData> mViewportData;
-
+  /// Returns the ViewportData struct for the viewport which is currently rendered.  
   ViewportData& getCurrentViewportData();
 
+  std::unordered_map<VistaViewport*, ViewportData> mViewportData;
+
+  /// CUDA buffers which store the view and projection parameters.
   float* mViewCuda = nullptr;
   float* mProjCuda = nullptr;
   float* mCamPosCuda = nullptr;
@@ -61,7 +62,7 @@ class SplatRenderer {
   size_t                         mAllocdGeom = 0, mAllocdBinning = 0, mAllocdImg = 0;
   void *                         mGeomPtr = nullptr, *mBinningPtr = nullptr, *mImgPtr = nullptr;
   std::function<char*(size_t N)> mGeomBufferFunc, mBinningBufferFunc, mImgBufferFunc;
-
+  
   struct {
     uint32_t mWidth    = 0;
     uint32_t mHeight = 0;
