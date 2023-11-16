@@ -39,8 +39,8 @@ class Plugin : public cs::core::PluginBase {
 
       /// Optional transformation relative to the location above.
       cs::utils::DefaultProperty<glm::dquat> mRotation{glm::dquat(1.0, 0.0, 0.0, 0.0)};
-      cs::utils::DefaultProperty<double> mScale{1.0};
-      cs::utils::DefaultProperty<double> mAltitude{0.0};
+      cs::utils::DefaultProperty<double>     mScale{1.0};
+      cs::utils::DefaultProperty<double>     mAltitude{0.0};
     };
 
     std::vector<RadianceField>          mRadianceFields;
@@ -58,7 +58,7 @@ class Plugin : public cs::core::PluginBase {
   void onLoad();
   void onSave();
 
-  std::shared_ptr<Settings> mPluginSettings = std::make_shared<Settings>();
+  std::shared_ptr<Settings>                      mPluginSettings = std::make_shared<Settings>();
   std::vector<std::shared_ptr<GaussianRenderer>> mRenderers;
 
   int mOnLoadConnection = -1;

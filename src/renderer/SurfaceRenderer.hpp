@@ -15,17 +15,16 @@
 namespace csp::gaussiansplatting {
 
 /// This is a very simple renderer which draws the given radiance field point cloud using instanced
-/// rendering. It can be used for debugging as radiance field data as it is much easier than the SplatRenderer.
-/// Rendering happens in two stages: first, the more opaque splats are drawn with depth testing enabled, then
-/// the more transparent splats are drawn additively on top.
+/// rendering. It can be used for debugging as radiance field data as it is much easier than the
+/// SplatRenderer. Rendering happens in two stages: first, the more opaque splats are drawn with
+/// depth testing enabled, then the more transparent splats are drawn additively on top.
 class SurfaceRenderer {
 
  public:
   SurfaceRenderer();
 
-  int draw(int count,
-     const GaussianData& mesh,
-      float alphaLimit,glm::vec3 const& camPos,  glm::mat4 const& matMVP);
+  int draw(int count, const GaussianData& mesh, float alphaLimit, glm::vec3 const& camPos,
+      glm::mat4 const& matMVP);
 
  private:
   VistaGLSLShader mShader;

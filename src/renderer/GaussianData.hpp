@@ -11,15 +11,15 @@
 
 #include "../externals/eigen/Eigen/Eigen"
 
+#include <GL/glew.h>
 #include <memory>
 #include <vector>
-#include <GL/glew.h>
 
 namespace csp::gaussiansplatting {
 
 /// This struct contains the GL and Cuda resources used for drawing the splats.
 struct GaussianData {
-  
+
   typedef Eigen::Matrix<float, 3, 1, Eigen::DontAlign> Pos;
 
   template <int D>
@@ -46,27 +46,28 @@ struct GaussianData {
   };
 
   /// Allocates all the GL and Cuda resources.
-  GaussianData( std::vector<Pos> const& pos, std::vector<Rot> const& rot, std::vector<Scale> const& scale,
-      std::vector<float> const& alpha, std::vector<SHs<3>> const& color);
+  GaussianData(std::vector<Pos> const& pos, std::vector<Rot> const& rot,
+      std::vector<Scale> const& scale, std::vector<float> const& alpha,
+      std::vector<SHs<3>> const& color);
 
   /// Frees all the resources again.
   ~GaussianData();
 
   /// These are used by the SurfaceRenderer.
-  GLuint mPosOpenGL = 0;
-  GLuint mRotOpenGL = 0;
+  GLuint mPosOpenGL   = 0;
+  GLuint mRotOpenGL   = 0;
   GLuint mScaleOpenGL = 0;
   GLuint mAlphaOpenGL = 0;
   GLuint mColorOpenGL = 0;
 
   /// These are used by the SplatRenderer.
-  float* mPosCuda = nullptr;
-  float* mRotCuda = nullptr;
-  float* mScaleCuda = nullptr;
+  float* mPosCuda     = nullptr;
+  float* mRotCuda     = nullptr;
+  float* mScaleCuda   = nullptr;
   float* mOpacityCuda = nullptr;
-  float* mShsCuda = nullptr;
+  float* mShsCuda     = nullptr;
 };
 
-}
+} // namespace csp::gaussiansplatting
 
 #endif

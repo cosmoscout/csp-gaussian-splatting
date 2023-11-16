@@ -25,8 +25,8 @@
 
 #include <cuda_gl_interop.h>
 #include <fstream>
-#include <glm/gtx/quaternion.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <glm/gtx/quaternion.hpp>
 #include <utility>
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -67,14 +67,14 @@ float sigmoid(const float m1) {
 // Load the Gaussians from the given file. This comes more or less unmodified from here:
 // https://gitlab.inria.fr/sibr/sibr_core/-/blob/fossa_compatibility/src/projects/gaussianviewer/renderer/GaussianView.cpp
 template <int D>
-int loadPly(const char* filename, std::vector<GaussianData::Pos>& pos, std::vector<GaussianData::SHs<3>>& shs,
-    std::vector<float>& opacities, std::vector<GaussianData::Scale>& scales, std::vector<GaussianData::Rot>& rot,
-    Vector3f& minn, Vector3f& maxx) {
+int loadPly(const char* filename, std::vector<GaussianData::Pos>& pos,
+    std::vector<GaussianData::SHs<3>>& shs, std::vector<float>& opacities,
+    std::vector<GaussianData::Scale>& scales, std::vector<GaussianData::Rot>& rot, Vector3f& minn,
+    Vector3f& maxx) {
   std::ifstream infile(filename, std::ios_base::binary);
 
   if (!infile.good()) {
-    logger().error(
-        "Unable to find model's PLY file, attempted: {}", filename);
+    logger().error("Unable to find model's PLY file, attempted: {}", filename);
   }
 
   // "Parse" header (it has to be a specific format anyway).
@@ -203,16 +203,16 @@ GaussianRenderer::~GaussianRenderer() {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void GaussianRenderer::configure(
-    Plugin::Settings::RadianceField const& settings, std::shared_ptr<Plugin::Settings> pluginSettings) {
-  
+void GaussianRenderer::configure(Plugin::Settings::RadianceField const& settings,
+    std::shared_ptr<Plugin::Settings>                                   pluginSettings) {
+
   // If the ply file or the CUDA device changed, we reload everything.
   if (mRadianceField.mPLY != settings.mPLY || mCudaDevice != pluginSettings->mCudaDevice.get()) {
     logger().info("Loading PLY {}", settings.mPLY);
 
     // Store the settings.
-    mRadianceField = settings;
-    mCudaDevice = pluginSettings->mCudaDevice.get();
+    mRadianceField  = settings;
+    mCudaDevice     = pluginSettings->mCudaDevice.get();
     mPluginSettings = std::move(pluginSettings);
 
     // Select the CUDA device.
@@ -235,13 +235,14 @@ void GaussianRenderer::configure(
     std::vector<GaussianData::Pos>    pos;
     std::vector<GaussianData::Rot>    rot;
     std::vector<GaussianData::Scale>  scale;
-    std::vector<float>  opacity;
+    std::vector<float>                opacity;
     std::vector<GaussianData::SHs<3>> shs;
 
     const int shDegree = 3;
-    Vector3f sceneMin{};
-    Vector3f sceneMax{};
-    mCount = loadPly<shDegree>(mRadianceField.mPLY.c_str(), pos, shs, opacity, scale, rot, sceneMin, sceneMax);
+    Vector3f  sceneMin{};
+    Vector3f  sceneMax{};
+    mCount = loadPly<shDegree>(
+        mRadianceField.mPLY.c_str(), pos, shs, opacity, scale, rot, sceneMin, sceneMax);
     mData = std::make_unique<GaussianData>(pos, rot, scale, opacity, shs);
   }
 }
@@ -255,11 +256,11 @@ bool GaussianRenderer::Do() {
   }
 
   cs::utils::FrameStats::ScopedTimer timer("Gaussian Renderer for " + mRadianceField.mPLY);
-  
+
   // Compute ENO (east-north-up) rotation for the given location on the planet.
   glm::dvec2 lngLat(cs::utils::convert::toRadians(mRadianceField.mLngLat));
-  auto normal = cs::utils::convert::lngLatToNormal(lngLat);
-  auto north = glm::dvec3(0.0, 1.0, 0.0);
+  auto       normal = cs::utils::convert::lngLatToNormal(lngLat);
+  auto       north  = glm::dvec3(0.0, 1.0, 0.0);
 
   auto x = glm::cross(north, normal);
   auto y = normal;
@@ -273,7 +274,8 @@ bool GaussianRenderer::Do() {
   auto rot = glm::toQuat(glm::dmat3(x, y, z)) * mRadianceField.mRotation.get();
 
   // Get the cartesian position from the given geographic coordinates.
-  auto pos = cs::utils::convert::toCartesian(lngLat, object->getRadii(), mRadianceField.mAltitude.get());
+  auto pos =
+      cs::utils::convert::toCartesian(lngLat, object->getRadii(), mRadianceField.mAltitude.get());
 
   // Get the final observer-relative transformation of the radiance field.
   glm::mat4 matM = object->getObserverRelativeTransform(pos, rot, mRadianceField.mScale.get());
@@ -297,7 +299,8 @@ bool GaussianRenderer::Do() {
   }
 
   if (mPluginSettings->mDrawSplats.get()) {
-    mSplatRenderer.draw(mPluginSettings->mSplatScale.get(), mCount, mPluginSettings->mDistanceFading.get(), *mData, viewPos, matV * matM, matP);
+    mSplatRenderer.draw(mPluginSettings->mSplatScale.get(), mCount,
+        mPluginSettings->mDistanceFading.get(), *mData, viewPos, matV * matM, matP);
   }
 
   return true;

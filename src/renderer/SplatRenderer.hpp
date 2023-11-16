@@ -12,8 +12,8 @@
 #include <VistaOGLExt/VistaGLSLShader.h>
 #include <cuda_gl_interop.h>
 #include <cuda_runtime.h>
-#include <glm/glm.hpp>
 #include <functional>
+#include <glm/glm.hpp>
 #include <memory>
 
 class VistaViewport;
@@ -29,15 +29,15 @@ class SplatRenderer {
   SplatRenderer();
   virtual ~SplatRenderer();
 
-  void draw(float scale, int count, bool doFade,
-     const GaussianData& mesh,
-      glm::vec3 const& camPos,  glm::mat4  matMV,  glm::mat4  matP);
+  void draw(float scale, int count, bool doFade, const GaussianData& mesh, glm::vec3 const& camPos,
+      glm::mat4 matMV, glm::mat4 matP);
 
  private:
-
-   /// This stores the CUDA and OpenGL resources required for rendering. As the draw method above can be called for different viewports with different resolutions, we have to store such a struct for each viewport.
-   struct ViewportData {
-    uint32_t mWidth = 0;
+  /// This stores the CUDA and OpenGL resources required for rendering. As the draw method above can
+  /// be called for different viewports with different resolutions, we have to store such a struct
+  /// for each viewport.
+  struct ViewportData {
+    uint32_t mWidth  = 0;
     uint32_t mHeight = 0;
 
     GLuint                 mImageBuffer = 0;
@@ -48,23 +48,23 @@ class SplatRenderer {
     float*            mFallbackBufferCuda = nullptr;
   };
 
-  /// Returns the ViewportData struct for the viewport which is currently rendered.  
+  /// Returns the ViewportData struct for the viewport which is currently rendered.
   ViewportData& getCurrentViewportData();
 
   std::unordered_map<VistaViewport*, ViewportData> mViewportData;
 
   /// CUDA buffers which store the view and projection parameters.
-  float* mViewCuda = nullptr;
-  float* mProjCuda = nullptr;
-  float* mCamPosCuda = nullptr;
+  float* mViewCuda       = nullptr;
+  float* mProjCuda       = nullptr;
+  float* mCamPosCuda     = nullptr;
   float* mBackgroundCuda = nullptr;
 
   size_t                         mAllocdGeom = 0, mAllocdBinning = 0, mAllocdImg = 0;
   void *                         mGeomPtr = nullptr, *mBinningPtr = nullptr, *mImgPtr = nullptr;
   std::function<char*(size_t N)> mGeomBufferFunc, mBinningBufferFunc, mImgBufferFunc;
-  
+
   struct {
-    uint32_t mWidth    = 0;
+    uint32_t mWidth  = 0;
     uint32_t mHeight = 0;
   } mUniforms;
 

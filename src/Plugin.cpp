@@ -10,10 +10,10 @@
 #include "GaussianRenderer.hpp"
 #include "logger.hpp"
 
+#include "../../../src/cs-core/GuiManager.hpp"
 #include "../../../src/cs-core/Settings.hpp"
 #include "../../../src/cs-core/SolarSystem.hpp"
 #include "../../../src/cs-utils/logger.hpp"
-#include "../../../src/cs-core/GuiManager.hpp"
 #include "../../../src/cs-utils/utils.hpp"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -81,8 +81,8 @@ void Plugin::init() {
   mOnLoadConnection = mAllSettings->onLoad().connect([this]() { onLoad(); });
   mOnSaveConnection = mAllSettings->onSave().connect([this]() { onSave(); });
 
-  mGuiManager->addSettingsSectionToSideBarFromHTML("Gaussian Splatting", "grain",
-      "../share/resources/gui/csp-gaussian-splatting.html");
+  mGuiManager->addSettingsSectionToSideBarFromHTML(
+      "Gaussian Splatting", "grain", "../share/resources/gui/csp-gaussian-splatting.html");
 
   mGuiManager->executeJavascriptFile("../share/resources/gui/js/csp-gaussian-splatting.js");
 
@@ -108,8 +108,9 @@ void Plugin::init() {
   });
 
   mGuiManager->getGui()->registerCallback("gaussiansplatting.setScale",
-      "Sets the apparent size of splats on screen.",
-      std::function([this](double value) { mPluginSettings->mSplatScale = static_cast<float>(value); }));
+      "Sets the apparent size of splats on screen.", std::function([this](double value) {
+        mPluginSettings->mSplatScale = static_cast<float>(value);
+      }));
   mPluginSettings->mSplatScale.connectAndTouch(
       [this](float value) { mGuiManager->setSliderValue("gaussiansplatting.setScale", value); });
 

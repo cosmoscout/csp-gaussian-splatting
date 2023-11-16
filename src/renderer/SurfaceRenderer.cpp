@@ -16,8 +16,10 @@ namespace csp::gaussiansplatting {
 
 SurfaceRenderer::SurfaceRenderer() {
   // Compile and link the shader.
-  mShader.InitVertexShaderFromString(cs::utils::filesystem::loadToString("../share/resources/shaders/gaussian_surface.vert"));
-  mShader.InitFragmentShaderFromString(cs::utils::filesystem::loadToString("../share/resources/shaders/gaussian_surface.frag"));
+  mShader.InitVertexShaderFromString(
+      cs::utils::filesystem::loadToString("../share/resources/shaders/gaussian_surface.vert"));
+  mShader.InitFragmentShaderFromString(
+      cs::utils::filesystem::loadToString("../share/resources/shaders/gaussian_surface.frag"));
   mShader.Link();
 
   // Get the uniform locations.
@@ -29,7 +31,8 @@ SurfaceRenderer::SurfaceRenderer() {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-int SurfaceRenderer::draw(int count, const GaussianData& mesh, float limit,glm::vec3 const& camPos,  glm::mat4 const& matMVP) {
+int SurfaceRenderer::draw(int count, const GaussianData& mesh, float limit, glm::vec3 const& camPos,
+    glm::mat4 const& matMVP) {
 
   // Bind all input buffers.
   glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, mesh.mPosOpenGL);
@@ -44,9 +47,9 @@ int SurfaceRenderer::draw(int count, const GaussianData& mesh, float limit,glm::
   glUniform3fv(mUniforms.mParamCamPos, 1, glm::value_ptr(camPos));
   glUniform1f(mUniforms.mParamLimit, limit);
 
-  // First stage is disabled for now as it clutters the scene quite a lot. Do we find a better debug visualization?
-  // glUniform1i(mUniforms.mParamStage, 0);
-  // glDrawArraysInstanced(GL_TRIANGLES, 0, 36, count);
+  // First stage is disabled for now as it clutters the scene quite a lot. Do we find a better debug
+  // visualization? glUniform1i(mUniforms.mParamStage, 0); glDrawArraysInstanced(GL_TRIANGLES, 0,
+  // 36, count);
 
   // Second stage uses additive blending and no depth test.
   glDisable(GL_DEPTH_TEST);
@@ -61,7 +64,7 @@ int SurfaceRenderer::draw(int count, const GaussianData& mesh, float limit,glm::
   glDepthMask(GL_TRUE);
   glDisable(GL_BLEND);
   glEnable(GL_DEPTH_TEST);
-  
+
   mShader.Release();
 
   return 0;

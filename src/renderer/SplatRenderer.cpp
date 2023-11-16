@@ -9,8 +9,8 @@
 #include "../../../../src/cs-utils/filesystem.hpp"
 
 #include <VistaKernel/DisplayManager/VistaDisplayManager.h>
-#include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_access.hpp>
+#include <glm/gtc/type_ptr.hpp>
 #include <rasterizer.h>
 #include <thread>
 
@@ -34,17 +34,17 @@ namespace csp::gaussiansplatting {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-typedef	Eigen::Matrix<float, 4, 4, Eigen::DontAlign, 4, 4>	Matrix4f;
+typedef Eigen::Matrix<float, 4, 4, Eigen::DontAlign, 4, 4> Matrix4f;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 SplatRenderer::SplatRenderer() {
- // Create space for view parameters
+  // Create space for view parameters
   CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void**)&mViewCuda, sizeof(Matrix4f)));
   CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void**)&mProjCuda, sizeof(Matrix4f)));
   CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void**)&mCamPosCuda, 3 * sizeof(float)));
   CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void**)&mBackgroundCuda, 3 * sizeof(float)));
-  
+
   // The background color is actually not used in our fork of diff-gaussian-rasterization.
   float bg[3] = {0.f, 0.f, 0.f};
   CUDA_SAFE_CALL_ALWAYS(cudaMemcpy(mBackgroundCuda, bg, 3 * sizeof(float), cudaMemcpyHostToDevice));
@@ -66,11 +66,13 @@ SplatRenderer::SplatRenderer() {
   mBinningBufferFunc = resizeFunctional(&mBinningPtr, mAllocdBinning);
   mImgBufferFunc     = resizeFunctional(&mImgPtr, mAllocdImg);
 
-  mCopyShader.InitVertexShaderFromString(cs::utils::filesystem::loadToString("../share/resources/shaders/copy.vert"));
-  mCopyShader.InitFragmentShaderFromString(cs::utils::filesystem::loadToString("../share/resources/shaders/copy.frag"));
+  mCopyShader.InitVertexShaderFromString(
+      cs::utils::filesystem::loadToString("../share/resources/shaders/copy.vert"));
+  mCopyShader.InitFragmentShaderFromString(
+      cs::utils::filesystem::loadToString("../share/resources/shaders/copy.frag"));
   mCopyShader.Link();
 
-  mUniforms.mWidth = glGetUniformLocation(mCopyShader.GetProgram(), "width");
+  mUniforms.mWidth  = glGetUniformLocation(mCopyShader.GetProgram(), "width");
   mUniforms.mHeight = glGetUniformLocation(mCopyShader.GetProgram(), "height");
 }
 
@@ -82,7 +84,7 @@ SplatRenderer::~SplatRenderer() {
   cudaFree(mCamPosCuda);
   cudaFree(mBackgroundCuda);
 
-  for (auto const& viewportData: mViewportData) {
+  for (auto const& viewportData : mViewportData) {
     if (!viewportData.second.mInteropFailed) {
       cudaGraphicsUnregisterResource(viewportData.second.mImageBufferCuda);
     } else {
@@ -106,21 +108,21 @@ SplatRenderer::~SplatRenderer() {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void SplatRenderer::draw(float scale, int count, bool doFade,
-     const GaussianData& mesh,
-     glm::vec3 const& camPos, glm::mat4 matMV, glm::mat4 matP) {
+void SplatRenderer::draw(float scale, int count, bool doFade, const GaussianData& mesh,
+    glm::vec3 const& camPos, glm::mat4 matMV, glm::mat4 matP) {
 
-  auto& viewportData = getCurrentViewportData();  
+  auto& viewportData = getCurrentViewportData();
 
   float tanFoVY = 1.f / matP[1][1];
   float tanFoVX = tanFoVY * (1.f * viewportData.mWidth / viewportData.mHeight);
 
-  // Convert view and projection to target coordinate system. This is done in the same manner as in the original implementation:
+  // Convert view and projection to target coordinate system. This is done in the same manner as in
+  // the original implementation:
   // https://gitlab.inria.fr/sibr/sibr_core/-/blob/fossa_compatibility/src/projects/gaussianviewer/renderer/GaussianView.cpp#L469
-  matP = matP * matMV;
+  matP  = matP * matMV;
   matMV = glm::row(matMV, 1, -1.f * glm::row(matMV, 1));
   matMV = glm::row(matMV, 2, -1.f * glm::row(matMV, 2));
-  matP = glm::row(matP, 1, -1.f * glm::row(matP, 1));
+  matP  = glm::row(matP, 1, -1.f * glm::row(matP, 1));
 
   // Copy frame-dependent data to GPU.
   CUDA_SAFE_CALL(
@@ -135,15 +137,15 @@ void SplatRenderer::draw(float scale, int count, bool doFade,
   if (!viewportData.mInteropFailed) {
     size_t bytes;
     CUDA_SAFE_CALL(cudaGraphicsMapResources(1, &viewportData.mImageBufferCuda));
-    CUDA_SAFE_CALL(
-        cudaGraphicsResourceGetMappedPointer((void**)&image_cuda, &bytes, viewportData.mImageBufferCuda));
+    CUDA_SAFE_CALL(cudaGraphicsResourceGetMappedPointer(
+        (void**)&image_cuda, &bytes, viewportData.mImageBufferCuda));
   } else {
     image_cuda = viewportData.mFallbackBufferCuda;
   }
 
   // Draw the radiance field!
-  CudaRasterizer::Rasterizer::forward(mGeomBufferFunc, mBinningBufferFunc, mImgBufferFunc, count,
-      3, 16, mBackgroundCuda, viewportData.mWidth, viewportData.mHeight, mesh.mPosCuda, mesh.mShsCuda,
+  CudaRasterizer::Rasterizer::forward(mGeomBufferFunc, mBinningBufferFunc, mImgBufferFunc, count, 3,
+      16, mBackgroundCuda, viewportData.mWidth, viewportData.mHeight, mesh.mPosCuda, mesh.mShsCuda,
       nullptr, mesh.mOpacityCuda, mesh.mScaleCuda, scale, mesh.mRotCuda, nullptr, mViewCuda,
       mProjCuda, mCamPosCuda, tanFoVX, tanFoVY, false, doFade, image_cuda);
 
@@ -151,13 +153,14 @@ void SplatRenderer::draw(float scale, int count, bool doFade,
   if (!viewportData.mInteropFailed) {
     CUDA_SAFE_CALL(cudaGraphicsUnmapResources(1, &viewportData.mImageBufferCuda));
   } else {
-    CUDA_SAFE_CALL(cudaMemcpy(viewportData.mFallbackBytes.data(), viewportData.mFallbackBufferCuda, viewportData.mFallbackBytes.size(),
-        cudaMemcpyDeviceToHost));
-    glNamedBufferSubData(viewportData.mImageBuffer, 0, viewportData.mFallbackBytes.size(), viewportData.mFallbackBytes.data());
+    CUDA_SAFE_CALL(cudaMemcpy(viewportData.mFallbackBytes.data(), viewportData.mFallbackBufferCuda,
+        viewportData.mFallbackBytes.size(), cudaMemcpyDeviceToHost));
+    glNamedBufferSubData(viewportData.mImageBuffer, 0, viewportData.mFallbackBytes.size(),
+        viewportData.mFallbackBytes.data());
   }
-  
 
-  // Copy image contents to frame buffer. For this, we disable the depth test, depth writing, and perform pre-multiplied alpha blending.
+  // Copy image contents to frame buffer. For this, we disable the depth test, depth writing, and
+  // perform pre-multiplied alpha blending.
   mCopyShader.Bind();
 
   glDisable(GL_DEPTH_TEST);
@@ -178,9 +181,9 @@ void SplatRenderer::draw(float scale, int count, bool doFade,
   mCopyShader.Release();
 
   if (cudaPeekAtLastError() != cudaSuccess) {
-    logger().error("A CUDA error occurred during rendering: {}", cudaGetErrorString(cudaGetLastError()));
+    logger().error(
+        "A CUDA error occurred during rendering: {}", cudaGetErrorString(cudaGetLastError()));
   }
- 
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -189,14 +192,15 @@ SplatRenderer::ViewportData& SplatRenderer::getCurrentViewportData() {
 
   std::array<GLint, 4> viewportExtent{};
   glGetIntegerv(GL_VIEWPORT, viewportExtent.data());
-  GLint width = viewportExtent.at(2);
+  GLint width  = viewportExtent.at(2);
   GLint height = viewportExtent.at(3);
 
-  auto vistaViewport = GetVistaSystem()->GetDisplayManager()->GetCurrentRenderInfo()->m_pViewport;
-  auto viewportData  = mViewportData.find(vistaViewport);
+  auto vistaViewport   = GetVistaSystem()->GetDisplayManager()->GetCurrentRenderInfo()->m_pViewport;
+  auto viewportData    = mViewportData.find(vistaViewport);
   bool needsRecreation = false;
 
-  // If we haven't seen this viewport before or it changed size, we need to create new resources for it.
+  // If we haven't seen this viewport before or it changed size, we need to create new resources for
+  // it.
   if (viewportData == mViewportData.end()) {
     needsRecreation = true;
 
@@ -213,8 +217,7 @@ SplatRenderer::ViewportData& SplatRenderer::getCurrentViewportData() {
     needsRecreation = true;
   }
 
-
-    // Create OpenGL buffer ready for CUDA/GL interop.
+  // Create OpenGL buffer ready for CUDA/GL interop.
   if (needsRecreation) {
 
     ViewportData data;
@@ -227,7 +230,8 @@ SplatRenderer::ViewportData& SplatRenderer::getCurrentViewportData() {
 
     if (useInterop) {
       if (cudaPeekAtLastError() != cudaSuccess) {
-        logger().error("A CUDA error occurred in setup: {}", cudaGetErrorString(cudaGetLastError()));
+        logger().error(
+            "A CUDA error occurred in setup: {}", cudaGetErrorString(cudaGetLastError()));
       }
       cudaGraphicsGLRegisterBuffer(
           &data.mImageBufferCuda, data.mImageBuffer, cudaGraphicsRegisterFlagsWriteDiscard);
@@ -240,7 +244,7 @@ SplatRenderer::ViewportData& SplatRenderer::getCurrentViewportData() {
       data.mInteropFailed = true;
     }
 
-    data.mWidth = width;
+    data.mWidth  = width;
     data.mHeight = height;
 
     // Store the new viewport data so that we can reuse it next time.
@@ -252,4 +256,4 @@ SplatRenderer::ViewportData& SplatRenderer::getCurrentViewportData() {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-}
+} // namespace csp::gaussiansplatting
