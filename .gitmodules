@@ -1,3 +1,6 @@
 [submodule "externals/diff-gaussian-rasterization"]
 	path = externals/diff-gaussian-rasterization
 	url = https://github.com/cosmoscout/diff-gaussian-rasterization.git
+[submodule "externals/eigen"]
+	path = externals/eigen
+	url = https://gitlab.com/libeigen/eigen.git

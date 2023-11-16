@@ -9,7 +9,7 @@
 #ifndef CSP_GAUSSIAN_SPLATTING_GAUSSIAN_DATA_HPP
 #define CSP_GAUSSIAN_SPLATTING_GAUSSIAN_DATA_HPP
 
-#include "../externals/Eigen/Eigen"
+#include "../externals/eigen/Eigen/Eigen"
 
 #include <memory>
 #include <vector>

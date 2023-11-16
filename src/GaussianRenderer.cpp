@@ -10,7 +10,7 @@
 
 #include "logger.hpp"
 
-#include "../externals/Eigen/Eigen"
+#include "../externals/eigen/Eigen/Eigen"
 
 #include "../../../src/cs-core/Settings.hpp"
 #include "../../../src/cs-core/SolarSystem.hpp"
