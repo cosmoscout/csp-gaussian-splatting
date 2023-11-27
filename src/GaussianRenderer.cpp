@@ -256,7 +256,7 @@ bool GaussianRenderer::Do() {
     return true;
   }
 
-  cs::utils::FrameStats::ScopedTimer timer("Gaussian Renderer for " + mRadianceField.mPLY);
+  cs::utils::FrameStats::ScopedTimer timer("Gaussian Renderer");
 
   // Compute ENU (east-north-up) rotation for the given location on the planet.
   glm::dvec2 lngLat(cs::utils::convert::toRadians(mRadianceField.mLngLat));
