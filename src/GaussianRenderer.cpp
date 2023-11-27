@@ -126,10 +126,10 @@ int loadPly(const char* filename, std::vector<GaussianData::Pos>& pos,
     Vector3i xyz    = scaled.cast<int>();
 
     uint64_t code = 0;
-    for (int i = 0; i < 21; i++) {
-      code |= static_cast<uint64_t>(xyz.x() & (1 << i)) << (2 * i + 0);
-      code |= static_cast<uint64_t>(xyz.y() & (1 << i)) << (2 * i + 1);
-      code |= static_cast<uint64_t>(xyz.z() & (1 << i)) << (2 * i + 2);
+    for (int j = 0; j < 21; j++) {
+      code |= static_cast<uint64_t>(xyz.x() & (1 << j)) << (2 * j + 0);
+      code |= static_cast<uint64_t>(xyz.y() & (1 << j)) << (2 * j + 1);
+      code |= static_cast<uint64_t>(xyz.z() & (1 << j)) << (2 * j + 2);
     }
 
     mapp[i].first  = code;
