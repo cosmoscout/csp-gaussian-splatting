@@ -23,8 +23,8 @@ class SurfaceRenderer {
  public:
   SurfaceRenderer();
 
-  int draw(float scale, int count, const GaussianData& mesh, float alphaLimit, glm::vec3 const& camPos,
-      glm::mat4 const& matMVP);
+  int draw(float scale, int count, const GaussianData& mesh, float alphaLimit,
+      glm::vec3 const& camPos, glm::mat4 const& matMVP);
 
  private:
   VistaGLSLShader mShader;

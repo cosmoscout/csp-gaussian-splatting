@@ -31,8 +31,8 @@ SurfaceRenderer::SurfaceRenderer() {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-int SurfaceRenderer::draw(float scale, int count, const GaussianData& mesh, float limit, glm::vec3 const& camPos,
-    glm::mat4 const& matMVP) {
+int SurfaceRenderer::draw(float scale, int count, const GaussianData& mesh, float limit,
+    glm::vec3 const& camPos, glm::mat4 const& matMVP) {
 
   // Bind all input buffers.
   glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, mesh.mPosOpenGL);
