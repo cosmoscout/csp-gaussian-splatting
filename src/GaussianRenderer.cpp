@@ -45,7 +45,7 @@ typedef Eigen::Matrix<int, 3, 1, Eigen::DontAlign>   Vector3i;
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 float sigmoid(const float m1) {
-  return 1.0f / (1.0f + exp(-m1));
+  return 1.0f / (1.0f + std::exp(-m1));
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -92,14 +92,14 @@ int loadPly(const char* filename, std::vector<GaussianData::Pos>& pos,
   logger().info("Loading {} Gaussian splats", count);
 
   while (std::getline(infile, buff)) {
-    if (buff.compare("end_header") == 0) {
+    if (buff == "end_header") {
       break;
     }
   }
 
   // Read all Gaussians at once (AoS).
   std::vector<GaussianData::RichPoint<D>> points(count);
-  infile.read((char*)points.data(), count * sizeof(GaussianData::RichPoint<D>));
+  infile.read(reinterpret_cast<char*>(points.data()), count * sizeof(GaussianData::RichPoint<D>));
 
   // Resize our SoA data.
   pos.resize(count);
@@ -112,7 +112,8 @@ int loadPly(const char* filename, std::vector<GaussianData::Pos>& pos,
   // them according to 3D Morton order. This means better cache
   // behavior for reading Gaussians that end up in the same tile
   // (close in 3D --> close in 2D).
-  minn = Vector3f(FLT_MAX, FLT_MAX, FLT_MAX);
+  minn = Vector3f(std::numeric_limits<float>::max(), std::numeric_limits<float>::max(),
+      std::numeric_limits<float>::max());
   maxx = -minn;
   for (int i = 0; i < count; i++) {
     maxx = maxx.cwiseMax(points[i].pos);
@@ -121,14 +122,14 @@ int loadPly(const char* filename, std::vector<GaussianData::Pos>& pos,
   std::vector<std::pair<uint64_t, int>> mapp(count);
   for (int i = 0; i < count; i++) {
     Vector3f rel    = (points[i].pos - minn).array() / (maxx - minn).array();
-    Vector3f scaled = ((float((1 << 21) - 1)) * rel);
+    Vector3f scaled = static_cast<float>((1 << 21) - 1) * rel;
     Vector3i xyz    = scaled.cast<int>();
 
     uint64_t code = 0;
     for (int i = 0; i < 21; i++) {
-      code |= ((uint64_t(xyz.x() & (1 << i))) << (2 * i + 0));
-      code |= ((uint64_t(xyz.y() & (1 << i))) << (2 * i + 1));
-      code |= ((uint64_t(xyz.z() & (1 << i))) << (2 * i + 2));
+      code |= static_cast<uint64_t>(xyz.x() & (1 << i)) << (2 * i + 0);
+      code |= static_cast<uint64_t>(xyz.y() & (1 << i)) << (2 * i + 1);
+      code |= static_cast<uint64_t>(xyz.z() & (1 << i)) << (2 * i + 2);
     }
 
     mapp[i].first  = code;
@@ -257,7 +258,7 @@ bool GaussianRenderer::Do() {
 
   cs::utils::FrameStats::ScopedTimer timer("Gaussian Renderer for " + mRadianceField.mPLY);
 
-  // Compute ENO (east-north-up) rotation for the given location on the planet.
+  // Compute ENU (east-north-up) rotation for the given location on the planet.
   glm::dvec2 lngLat(cs::utils::convert::toRadians(mRadianceField.mLngLat));
   auto       normal = cs::utils::convert::lngLatToNormal(lngLat);
   auto       north  = glm::dvec3(0.0, 1.0, 0.0);

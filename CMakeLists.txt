@@ -13,7 +13,8 @@ endif()
 
 # add cuda support ---------------------------------------------------------------------------------
 
-find_package(CUDA 11.0 REQUIRED)
+enable_language(CUDA)
+find_package(CUDAToolkit REQUIRED)
 
 # compile the rasterizer lib -----------------------------------------------------------------------
 
@@ -37,10 +38,9 @@ target_link_libraries(csp-gaussian-splatting
   PUBLIC
     cs-core
     CudaRasterizer
-    ${CUDA_LIBRARIES}
+    CUDA::cudart
+    CUDA::cuda_driver
 )
-
-target_include_directories(csp-gaussian-splatting PUBLIC ${CUDA_INCLUDE_DIRS})
 
 # Add this Plugin to a "plugins" folder in your IDE.
 set_property(TARGET csp-gaussian-splatting PROPERTY FOLDER "plugins")

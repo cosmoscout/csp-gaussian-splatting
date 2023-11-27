@@ -66,18 +66,18 @@ vec3 closestEllipsoidIntersection(vec3 rayDirection, out vec3 normal) {
 }
 
 void main(void) {
-	vec3 dir = normalize(worldPos - rayOrigin);
+  vec3 dir = normalize(worldPos - rayOrigin);
 
-	vec3 normal;
-	vec3 intersection = closestEllipsoidIntersection(dir, normal);
-	float align = max(0.4, dot(-dir, normal));
-	
-	out_color = vec4(1, 0, 0, 1);
-	
-	if(intersection == vec3(0))
-		discard;
+  vec3 normal;
+  vec3 intersection = closestEllipsoidIntersection(dir, normal);
+  float align = max(0.4, dot(-dir, normal));
 
-	float a = stage == 0 ? 1.0 : 0.05f;
+  out_color = vec4(1, 0, 0, 1);
 
-	out_color = vec4(align * colorVert, a);
+  if (intersection == vec3(0))
+    discard;
+
+  float a = stage == 0 ? 1.0 : 0.05;
+
+  out_color = vec4(align * colorVert, a);
 }

@@ -23,10 +23,10 @@ SurfaceRenderer::SurfaceRenderer() {
   mShader.Link();
 
   // Get the uniform locations.
-  mUniforms.mParamCamPos = glGetUniformLocation(mShader.GetProgram(), "rayOrigin");
-  mUniforms.mParamMVP    = glGetUniformLocation(mShader.GetProgram(), "MVP");
-  mUniforms.mParamLimit  = glGetUniformLocation(mShader.GetProgram(), "alpha_limit");
-  mUniforms.mParamStage  = glGetUniformLocation(mShader.GetProgram(), "stage");
+  mUniforms.mParamCamPos = mShader.GetUniformLocation("rayOrigin");
+  mUniforms.mParamMVP    = mShader.GetUniformLocation("MVP");
+  mUniforms.mParamLimit  = mShader.GetUniformLocation("alpha_limit");
+  mUniforms.mParamStage  = mShader.GetUniformLocation("stage");
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

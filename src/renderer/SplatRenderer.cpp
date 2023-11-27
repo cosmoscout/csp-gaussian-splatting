@@ -40,10 +40,10 @@ typedef Eigen::Matrix<float, 4, 4, Eigen::DontAlign, 4, 4> Matrix4f;
 
 SplatRenderer::SplatRenderer() {
   // Create space for view parameters
-  CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void**)&mViewCuda, sizeof(Matrix4f)));
-  CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void**)&mProjCuda, sizeof(Matrix4f)));
-  CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void**)&mCamPosCuda, 3 * sizeof(float)));
-  CUDA_SAFE_CALL_ALWAYS(cudaMalloc((void**)&mBackgroundCuda, 3 * sizeof(float)));
+  CUDA_SAFE_CALL_ALWAYS(cudaMalloc(reinterpret_cast<void**>(&mViewCuda), sizeof(Matrix4f)));
+  CUDA_SAFE_CALL_ALWAYS(cudaMalloc(reinterpret_cast<void**>(&mProjCuda), sizeof(Matrix4f)));
+  CUDA_SAFE_CALL_ALWAYS(cudaMalloc(reinterpret_cast<void**>(&mCamPosCuda), 3 * sizeof(float)));
+  CUDA_SAFE_CALL_ALWAYS(cudaMalloc(reinterpret_cast<void**>(&mBackgroundCuda), 3 * sizeof(float)));
 
   // The background color is actually not used in our fork of diff-gaussian-rasterization.
   float bg[3] = {0.f, 0.f, 0.f};
@@ -57,7 +57,7 @@ SplatRenderer::SplatRenderer() {
         CUDA_SAFE_CALL(cudaMalloc(ptr, 2 * N));
         S = 2 * N;
       }
-      return reinterpret_cast<char*>(*ptr);
+      return static_cast<char*>(*ptr);
     };
     return lambda;
   };
@@ -72,8 +72,8 @@ SplatRenderer::SplatRenderer() {
       cs::utils::filesystem::loadToString("../share/resources/shaders/copy.frag"));
   mCopyShader.Link();
 
-  mUniforms.mWidth  = glGetUniformLocation(mCopyShader.GetProgram(), "width");
-  mUniforms.mHeight = glGetUniformLocation(mCopyShader.GetProgram(), "height");
+  mUniforms.mWidth  = mCopyShader.GetUniformLocation("width");
+  mUniforms.mHeight = mCopyShader.GetUniformLocation("height");
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -84,13 +84,13 @@ SplatRenderer::~SplatRenderer() {
   cudaFree(mCamPosCuda);
   cudaFree(mBackgroundCuda);
 
-  for (auto const& viewportData : mViewportData) {
-    if (!viewportData.second.mInteropFailed) {
-      cudaGraphicsUnregisterResource(viewportData.second.mImageBufferCuda);
+  for (auto const& [viewport, data] : mViewportData) {
+    if (!data.mInteropFailed) {
+      cudaGraphicsUnregisterResource(data.mImageBufferCuda);
     } else {
-      cudaFree(viewportData.second.mFallbackBufferCuda);
+      cudaFree(data.mFallbackBufferCuda);
     }
-    glDeleteBuffers(1, &viewportData.second.mImageBuffer);
+    glDeleteBuffers(1, &data.mImageBuffer);
   }
 
   if (mGeomPtr) {
@@ -138,7 +138,7 @@ void SplatRenderer::draw(float scale, int count, bool doFade, const GaussianData
     size_t bytes;
     CUDA_SAFE_CALL(cudaGraphicsMapResources(1, &viewportData.mImageBufferCuda));
     CUDA_SAFE_CALL(cudaGraphicsResourceGetMappedPointer(
-        (void**)&image_cuda, &bytes, viewportData.mImageBufferCuda));
+        reinterpret_cast<void**>(&image_cuda), &bytes, viewportData.mImageBufferCuda));
   } else {
     image_cuda = viewportData.mFallbackBufferCuda;
   }
@@ -172,7 +172,7 @@ void SplatRenderer::draw(float scale, int count, bool doFade, const GaussianData
   glUniform1i(mUniforms.mHeight, viewportData.mHeight);
 
   glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, viewportData.mImageBuffer);
-  glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+  glDrawArrays(GL_TRIANGLE_STRIP, 0, 3);
 
   glEnable(GL_DEPTH_TEST);
   glDisable(GL_BLEND);

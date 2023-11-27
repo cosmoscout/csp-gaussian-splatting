@@ -24,25 +24,25 @@ struct GaussianData {
 
   template <int D>
   struct SHs {
-    float shs[(D + 1) * (D + 1) * 3];
+    std::array<float, (D + 1) * (D + 1) * 3> shs;
   };
 
   struct Scale {
-    float scale[3];
+    std::array<float, 3> scale;
   };
 
   struct Rot {
-    float rot[4];
+    std::array<float, 4> rot;
   };
 
   template <int D>
   struct RichPoint {
-    Pos    pos;
-    float  n[3];
-    SHs<D> shs;
-    float  opacity;
-    Scale  scale;
-    Rot    rot;
+    Pos                  pos;
+    std::array<float, 3> n;
+    SHs<D>               shs;
+    float                opacity;
+    Scale                scale;
+    Rot                  rot;
   };
 
   /// Allocates all the GL and Cuda resources.

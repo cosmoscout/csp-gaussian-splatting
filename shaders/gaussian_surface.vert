@@ -80,28 +80,28 @@ out float alphaVert;
 out flat int boxID;
 
 void main() {
-	boxID = gl_InstanceID;
-    ellipsoidCenter = vec3(centers[3 * boxID + 0], centers[3 * boxID + 1], centers[3 * boxID + 2]);
-    float a = alphas[boxID];
-	alphaVert = a;
-	ellipsoidScale = vec3(scales[3 * boxID + 0], scales[3 * boxID + 1], scales[3 * boxID + 2]);
-	ellipsoidScale = 2 * ellipsoidScale;
+  boxID = gl_InstanceID;
+  ellipsoidCenter = vec3(centers[3 * boxID + 0], centers[3 * boxID + 1], centers[3 * boxID + 2]);
+  float a = alphas[boxID];
+  alphaVert = a;
+  ellipsoidScale = vec3(scales[3 * boxID + 0], scales[3 * boxID + 1], scales[3 * boxID + 2]);
+  ellipsoidScale = 2 * ellipsoidScale;
 
-	vec4 q = rots[boxID];
-	ellipsoidRotation = transpose(quatToMat3(q));
+  vec4 q = rots[boxID];
+  ellipsoidRotation = transpose(quatToMat3(q));
 
-    int vertexIndex = boxIndices[gl_VertexID];
-    worldPos = ellipsoidRotation * (ellipsoidScale * boxVertices[vertexIndex]);
-    worldPos += ellipsoidCenter;
+  int vertexIndex = boxIndices[gl_VertexID];
+  worldPos = ellipsoidRotation * (ellipsoidScale * boxVertices[vertexIndex]);
+  worldPos += ellipsoidCenter;
 
-	float r = colors[boxID * 48 + 0] * 0.2 + 0.5;
-	float g = colors[boxID * 48 + 1] * 0.2 + 0.5;
-	float b = colors[boxID * 48 + 2] * 0.2 + 0.5;
+  float r = colors[boxID * 48 + 0] * 0.2 + 0.5;
+  float g = colors[boxID * 48 + 1] * 0.2 + 0.5;
+  float b = colors[boxID * 48 + 2] * 0.2 + 0.5;
 
-	colorVert = vec3(r, g, b);
-	
-	if((stage == 0 && a < alpha_limit) || (stage == 1 && a >= alpha_limit))
-	 	gl_Position = vec4(0,0,0,0);
-	else
-    	gl_Position = MVP * vec4(worldPos, 1);
+  colorVert = vec3(r, g, b);
+
+  if ((stage == 0 && a < alpha_limit) || (stage == 1 && a >= alpha_limit))
+    gl_Position = vec4(0, 0, 0, 0);
+  else
+    gl_Position = MVP * vec4(worldPos, 1);
 }

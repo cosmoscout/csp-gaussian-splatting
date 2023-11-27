@@ -25,10 +25,13 @@ void main(void)
 	int x = int(texcoord.x * width);
 	int y = height - 1 - int(texcoord.y * height);
 
-	float r = source.data[0 * width * height + (y * width + x)];
-	float g = source.data[1 * width * height + (y * width + x)];
-	float b = source.data[2 * width * height + (y * width + x)];
-	float a = source.data[3 * width * height + (y * width + x)];
+        int size   = width * height;
+        int offset = (y * width + x);
+        
+	float r = source.data[0 * size + offset];
+	float g = source.data[1 * size + offset];
+	float b = source.data[2 * size + offset];
+	float a = source.data[3 * size + offset];
 
     out_color = vec4(r, g, b, a);
 }

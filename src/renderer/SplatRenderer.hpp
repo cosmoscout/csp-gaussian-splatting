@@ -59,9 +59,17 @@ class SplatRenderer {
   float* mCamPosCuda     = nullptr;
   float* mBackgroundCuda = nullptr;
 
-  size_t                         mAllocdGeom = 0, mAllocdBinning = 0, mAllocdImg = 0;
-  void *                         mGeomPtr = nullptr, *mBinningPtr = nullptr, *mImgPtr = nullptr;
-  std::function<char*(size_t N)> mGeomBufferFunc, mBinningBufferFunc, mImgBufferFunc;
+  size_t mAllocdGeom    = 0;
+  size_t mAllocdBinning = 0;
+  size_t mAllocdImg     = 0;
+
+  void* mGeomPtr    = nullptr;
+  void* mBinningPtr = nullptr;
+  void* mImgPtr     = nullptr;
+
+  std::function<char*(size_t N)> mGeomBufferFunc;
+  std::function<char*(size_t N)> mBinningBufferFunc;
+  std::function<char*(size_t N)> mImgBufferFunc;
 
   struct {
     uint32_t mWidth  = 0;
