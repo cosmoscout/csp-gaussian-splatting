@@ -44,7 +44,7 @@ class Plugin : public cs::core::PluginBase {
     };
 
     std::vector<RadianceField>          mRadianceFields;
-    cs::utils::DefaultProperty<bool>    mDrawSplats{false};
+    cs::utils::DefaultProperty<bool>    mDrawSplats{true};
     cs::utils::DefaultProperty<bool>    mDrawEllipses{false};
     cs::utils::DefaultProperty<bool>    mDistanceFading{true};
     cs::utils::DefaultProperty<float>   mSplatScale{1.f};
