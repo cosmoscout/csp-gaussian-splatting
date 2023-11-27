@@ -23,7 +23,7 @@ class SurfaceRenderer {
  public:
   SurfaceRenderer();
 
-  int draw(int count, const GaussianData& mesh, float alphaLimit, glm::vec3 const& camPos,
+  int draw(float scale, int count, const GaussianData& mesh, float alphaLimit, glm::vec3 const& camPos,
       glm::mat4 const& matMVP);
 
  private:
@@ -33,7 +33,7 @@ class SurfaceRenderer {
     uint32_t mParamMVP    = 0;
     uint32_t mParamCamPos = 0;
     uint32_t mParamLimit  = 0;
-    uint32_t mParamStage  = 0;
+    uint32_t mParamScale  = 0;
   } mUniforms;
 };
 

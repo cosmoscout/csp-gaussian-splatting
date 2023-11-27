@@ -10,7 +10,7 @@
 
 uniform mat4 MVP;
 uniform float alpha_limit;
-uniform int stage;
+uniform float scale;
 
 layout (std430, binding = 0) buffer BoxCenters {
     float centers[];
@@ -85,7 +85,7 @@ void main() {
   float a = alphas[boxID];
   alphaVert = a;
   ellipsoidScale = vec3(scales[3 * boxID + 0], scales[3 * boxID + 1], scales[3 * boxID + 2]);
-  ellipsoidScale = 2 * ellipsoidScale;
+  ellipsoidScale = 2 * ellipsoidScale * scale;
 
   vec4 q = rots[boxID];
   ellipsoidRotation = transpose(quatToMat3(q));
@@ -100,8 +100,9 @@ void main() {
 
   colorVert = vec3(r, g, b);
 
-  if ((stage == 0 && a < alpha_limit) || (stage == 1 && a >= alpha_limit))
+  if (a < alpha_limit) {
     gl_Position = vec4(0, 0, 0, 0);
-  else
+  } else {
     gl_Position = MVP * vec4(worldPos, 1);
+  }
 }

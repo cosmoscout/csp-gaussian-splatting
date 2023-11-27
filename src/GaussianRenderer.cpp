@@ -296,7 +296,7 @@ bool GaussianRenderer::Do() {
 
   // Finally draw the debug ellipses and/or the splats.
   if (mPluginSettings->mDrawEllipses.get()) {
-    mSurfaceRenderer.draw(mCount, *mData, 0.2f, viewPos, matP * matV * matM);
+    mSurfaceRenderer.draw(mPluginSettings->mSplatScale.get(), mCount, *mData, 0.2f, viewPos, matP * matV * matM);
   }
 
   if (mPluginSettings->mDrawSplats.get()) {

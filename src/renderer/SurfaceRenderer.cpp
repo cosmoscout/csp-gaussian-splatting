@@ -26,12 +26,12 @@ SurfaceRenderer::SurfaceRenderer() {
   mUniforms.mParamCamPos = mShader.GetUniformLocation("rayOrigin");
   mUniforms.mParamMVP    = mShader.GetUniformLocation("MVP");
   mUniforms.mParamLimit  = mShader.GetUniformLocation("alpha_limit");
-  mUniforms.mParamStage  = mShader.GetUniformLocation("stage");
+  mUniforms.mParamScale  = mShader.GetUniformLocation("scale");
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-int SurfaceRenderer::draw(int count, const GaussianData& mesh, float limit, glm::vec3 const& camPos,
+int SurfaceRenderer::draw(float scale, int count, const GaussianData& mesh, float limit, glm::vec3 const& camPos,
     glm::mat4 const& matMVP) {
 
   // Bind all input buffers.
@@ -46,24 +46,8 @@ int SurfaceRenderer::draw(int count, const GaussianData& mesh, float limit, glm:
   glUniformMatrix4fv(mUniforms.mParamMVP, 1, GL_FALSE, glm::value_ptr(matMVP));
   glUniform3fv(mUniforms.mParamCamPos, 1, glm::value_ptr(camPos));
   glUniform1f(mUniforms.mParamLimit, limit);
-
-  // First stage is disabled for now as it clutters the scene quite a lot. Do we find a better debug
-  // visualization? glUniform1i(mUniforms.mParamStage, 0); glDrawArraysInstanced(GL_TRIANGLES, 0,
-  // 36, count);
-
-  // Second stage uses additive blending and no depth test.
-  glDisable(GL_DEPTH_TEST);
-  glEnable(GL_BLEND);
-  glDepthMask(GL_FALSE);
-  glBlendEquation(GL_FUNC_ADD);
-  glBlendFunc(GL_SRC_ALPHA, GL_ONE);
-
-  glUniform1i(mUniforms.mParamStage, 1);
+  glUniform1f(mUniforms.mParamScale, scale);
   glDrawArraysInstanced(GL_TRIANGLES, 0, 36, count);
-
-  glDepthMask(GL_TRUE);
-  glDisable(GL_BLEND);
-  glEnable(GL_DEPTH_TEST);
 
   mShader.Release();
 

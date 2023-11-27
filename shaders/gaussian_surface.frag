@@ -10,7 +10,6 @@
 
 uniform mat4 MVP;
 uniform float alpha_limit;
-uniform int stage;
 uniform vec3 rayOrigin;
 
 in vec3 worldPos;
@@ -23,7 +22,7 @@ in flat int boxID;
 
 layout (location = 0) out vec4 out_color;
 
-vec3 closestEllipsoidIntersection(vec3 rayDirection, out vec3 normal) {
+vec3 closestEllipsoidIntersection(vec3 rayDirection) {
   // Convert ray to ellipsoid space
   dvec3 localRayOrigin = (rayOrigin - ellipsoidCenter) * ellipsoidRotation;
   dvec3 localRayDirection = normalize(rayDirection * ellipsoidRotation);
@@ -53,12 +52,6 @@ vec3 closestEllipsoidIntersection(vec3 rayDirection, out vec3 normal) {
   // Compute intersection point in ellipsoid space
   vec3 localIntersection = vec3(localRayOrigin + t * localRayDirection);
 
-  // Compute normal vector in ellipsoid space
-  vec3 localNormal = normalize(localIntersection / ellipsoidScale);
-  
-  // Convert normal vector to world space
-  normal = normalize(ellipsoidRotation * localNormal);
-  
   // Convert intersection point back to world space
   vec3 intersection = ellipsoidRotation * localIntersection + ellipsoidCenter;
   
@@ -68,16 +61,11 @@ vec3 closestEllipsoidIntersection(vec3 rayDirection, out vec3 normal) {
 void main(void) {
   vec3 dir = normalize(worldPos - rayOrigin);
 
-  vec3 normal;
-  vec3 intersection = closestEllipsoidIntersection(dir, normal);
-  float align = max(0.4, dot(-dir, normal));
+  vec3 intersection = closestEllipsoidIntersection(dir);
 
-  out_color = vec4(1, 0, 0, 1);
-
-  if (intersection == vec3(0))
+  if (intersection == vec3(0)) {
     discard;
+  }
 
-  float a = stage == 0 ? 1.0 : 0.05;
-
-  out_color = vec4(align * colorVert, a);
+  out_color = vec4(colorVert, 1.0);
 }
