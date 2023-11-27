@@ -222,23 +222,19 @@ SplatRenderer::ViewportData& SplatRenderer::getCurrentViewportData() {
 
     ViewportData data;
 
-    bool useInterop = true;
-
     glCreateBuffers(1, &data.mImageBuffer);
     glNamedBufferStorage(
         data.mImageBuffer, width * height * 4 * sizeof(float), nullptr, GL_DYNAMIC_STORAGE_BIT);
 
-    if (useInterop) {
-      if (cudaPeekAtLastError() != cudaSuccess) {
-        logger().error(
-            "A CUDA error occurred in setup: {}", cudaGetErrorString(cudaGetLastError()));
-      }
-      cudaGraphicsGLRegisterBuffer(
-          &data.mImageBufferCuda, data.mImageBuffer, cudaGraphicsRegisterFlagsWriteDiscard);
-      useInterop &= (cudaGetLastError() == cudaSuccess);
+    if (cudaPeekAtLastError() != cudaSuccess) {
+      logger().error(
+          "A CUDA error occurred in setup: {}", cudaGetErrorString(cudaGetLastError()));
     }
-
-    if (!useInterop) {
+    cudaGraphicsGLRegisterBuffer(
+        &data.mImageBufferCuda, data.mImageBuffer, cudaGraphicsRegisterFlagsWriteDiscard);
+    
+    // Prepare fallback buffer if interop is not available. 
+    if (cudaGetLastError() != cudaSuccess) {
       data.mFallbackBytes.resize(width * height * 4 * sizeof(float));
       cudaMalloc(&data.mFallbackBufferCuda, data.mFallbackBytes.size());
       data.mInteropFailed = true;
