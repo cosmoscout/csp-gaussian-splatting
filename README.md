@@ -22,7 +22,7 @@ To add this plugin to CosmoScout VR, clone the repository recursively to the plu
 
 ```
 cd cosmoscout-vr/plugins
-git clone git@gitlab.dlr.de:scivis/cosmoscout/csp-gaussian-splatting.git --recursive
+git clone https://github.com/cosmoscout/csp-gaussian-splatting.git --recursive
 ```
 
 CosmoScout VR will pick this up automatically, a simple `./make.sh` or `.\make.bat` as usual will build Cosmocout VR together with the plugin.
