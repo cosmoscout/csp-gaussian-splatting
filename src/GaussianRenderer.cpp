@@ -184,9 +184,9 @@ int loadPly(const char* filename, std::vector<GaussianData::Pos>& pos,
 
 GaussianRenderer::GaussianRenderer(std::shared_ptr<cs::core::Settings> settings,
     std::shared_ptr<cs::core::SolarSystem> solarSystem, std::string objectName)
-    : mObjectName(std::move(objectName))
-    , mSettings(std::move(settings))
-    , mSolarSystem(std::move(solarSystem)) {
+    : mSolarSystem(std::move(solarSystem)) 
+    , mObjectName(std::move(objectName))
+    , mSettings(std::move(settings)) {
 
   // Add to scenegraph.
   VistaSceneGraph* pSG = GetVistaSystem()->GetGraphicsManager()->GetSceneGraph();

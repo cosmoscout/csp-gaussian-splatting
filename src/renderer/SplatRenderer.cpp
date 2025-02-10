@@ -204,7 +204,8 @@ SplatRenderer::ViewportData& SplatRenderer::getCurrentViewportData() {
   if (viewportData == mViewportData.end()) {
     needsRecreation = true;
 
-  } else if (viewportData->second.mWidth != width || viewportData->second.mHeight != height) {
+  } else if (static_cast<GLint>(viewportData->second.mWidth) != width ||
+             static_cast<GLint>(viewportData->second.mHeight) != height) {
 
     // If the viewport changed size, we have to free any previously created resources first.
     if (!viewportData->second.mInteropFailed) {
